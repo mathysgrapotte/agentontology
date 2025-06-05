@@ -103,3 +103,35 @@ def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
             bio_tools_id = tool.get("identifier", "")
         print("Extracted metadata information from nf-core module meta.yml")
     return {"inputs": inputs, "outputs": outputs, "homepage": homepage_url, "documentation": documentation_rul, "bio_tools_id": bio_tools_id}
+
+
+def get_biotools_response(tool_name: str) -> list:
+    """
+    Try to get bio.tools information for a tool.
+
+    Args:
+        tool_name (str): The name of the tool to get the bio.tools information for.
+
+    Returns:
+        list: A list with all the entries in biotools associated to the name of the tool and its description.
+    """
+    url = f"https://bio.tools/api/t/?q={tool_name}&format=json"
+    try:
+        # Send a GET request to the API
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        # Parse the JSON response
+        data = response.text
+        data = json.loads(data)
+        data_list = data.get("list", [])
+        tool_info = [(tool.get("name"), tool.get("description", "")) for tool in data_list]
+
+        for name, desc in tool_info:
+            print(f"Tool: {name}\nDescription: {desc}\n")
+
+        print(f"Found bio.tools information for '{tool_name}'")
+        return tool_info
+
+    except requests.exceptions.RequestException as e:
+        print(f"Could not find bio.tools information for '{tool_name}': {e}")
+        return f"Could not find bio.tools information for '{tool_name}': {e}"
