@@ -1,48 +1,5 @@
-from smolagents import CodeAgent, LiteLLMModel, tool
-from smolagents.tools import ToolCollection
-import gradio as gr
-import requests
-import yaml
-from owlready2 import get_ontology, default_world
-import logging
-
-def get_fastqc_meta_yaml():
-    """
-    Fetches the content of the FastQC meta.yml file from nf-core modules repository.
-    
-    Returns:
-        str: The content of the YAML file as a string
-    """
-    # Use the raw GitHub URL to get the file content directly
-    url = "https://raw.githubusercontent.com/nf-core/modules/master/modules/nf-core/fastqc/meta.yml"
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
-        return response.text
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching YAML file: {e}")
-        return None
-    
-def get_fastqc_input_yaml():
-    """
-    Fetches the content of the FastQC input.yml file from nf-core modules repository.
-    
-    Returns:
-        str: The content of the YAML file as a dictionary
-    """
-
-    yaml_content = get_fastqc_meta_yaml()
-    if yaml_content:
-        try:
-            # Parse the YAML content
-            return yaml.safe_load(yaml_content)["input"]
-        except yaml.YAMLError as e:
-            print(f"Error parsing YAML: {e}")
-            return None
-    else:
-        print("Failed to fetch the YAML file, returning None.")
-        return None
+from smolagents import tool
+from owlready2 import get_ontology
 
 
 def load_edam_ontology():
@@ -151,29 +108,3 @@ def get_edam_description_from_ontology_format_class(term_id: str) -> str:
             
     except AttributeError:
         return f"Term {term_id} not found in EDAM ontology"
-
-# Example usage:
-if __name__ == "__main__":
-    tool_list = [search_edam_ontology_by_search_term, get_edam_description_from_ontology_format_class]
-
-    model = LiteLLMModel(
-    model_id="ollama/devstral:latest",
-    #model_id="ollama/qwen3:0.6b",
-    api_base="http://localhost:11434",
-    temperature=0.0,
-    max_tokens=5000,
-    )
-
-    agent = CodeAgent(
-        tools=tool_list,
-        model=model,
-        additional_authorized_imports=["inspect", "json"]
-    )
-
-    print(agent.tools)
-    input_yaml = get_fastqc_input_yaml()
-    for input_tool in input_yaml[0]:
-        for key, value in input_tool.items():
-            if key != "meta":
-                result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
-                print(result)

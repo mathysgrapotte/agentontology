@@ -2,22 +2,6 @@ import requests
 import json
 import yaml
 
-# TODO: placeholder function
-def fetch_meta_yml(module_name):
-    # Adjust the URL or path to your actual source of nf-core modules
-    base_url = f"https://raw.githubusercontent.com/nf-core/modules/refs/heads/master/modules/nf-core/{module_name}/meta.yml"
-    try:
-        response = requests.get(base_url)
-        response.raise_for_status()
-        content = response.text
-
-        # Save for download
-        with open("meta.yml", "w") as f:
-            f.write(content)
-
-        return content, "meta.yml"
-    except Exception as e:
-        return f"Error: Could not retrieve meta.yml for module '{module_name}'\n{e}", None
 
 def get_meta_yml_file(module_name: str) -> dict:
     """
@@ -40,7 +24,7 @@ def get_meta_yml_file(module_name: str) -> dict:
     else:
         tool, subtool = module_name, ""
 
-    if subtool:
+    if subtool != "":
         url = f"https://raw.githubusercontent.com/nf-core/modules/refs/heads/master/modules/nf-core/{tool}/{subtool}/meta.yml"
     else:
         url = f"https://raw.githubusercontent.com/nf-core/modules/refs/heads/master/modules/nf-core/{tool}/meta.yml"
