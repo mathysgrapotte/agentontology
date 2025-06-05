@@ -121,7 +121,6 @@ def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
         print("Extracted metadata information from nf-core module meta.yml")
     return {"inputs": inputs, "outputs": outputs, "homepage": homepage_url, "documentation": documentation_rul, "bio_tools_id": bio_tools_id}
 
-#%%
 def get_biotools_response(tool_name: str) -> list:
     """
     Try to get bio.tools information for a tool.
