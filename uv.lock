@@ -15,6 +15,8 @@ dependencies = [
     { name = "gradio", extra = ["mcp"] },
     { name = "huggingface-hub", extra = ["mcp"] },
     { name = "mcp" },
+    { name = "owlready2" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "smolagents", extra = ["litellm", "mcp"] },
     { name = "textblob" },
@@ -26,6 +28,8 @@ requires-dist = [
     { name = "gradio", extras = ["mcp"], specifier = ">=5.0.0" },
     { name = "huggingface-hub", extras = ["mcp"], specifier = ">=0.32.2" },
     { name = "mcp", specifier = ">=1.9.2" },
+    { name = "owlready2", specifier = ">=0.48" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "requests" },
     { name = "smolagents", extras = ["litellm", "mcp"], specifier = ">=1.17.0" },
     { name = "textblob", specifier = ">=0.19.0" },
@@ -1053,6 +1057,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/03/c75c6ad46be41c16f4cfe0352a2d1450546f3c09ad2c9d341110cd87b025/orjson-3.10.18-cp313-cp313-win_amd64.whl", hash = "sha256:aed411bcb68bf62e85588f2a7e03a6082cc42e5a2796e06e72a962d7c6310b52", size = 134794 },
     { url = "https://files.pythonhosted.org/packages/c2/28/f53038a5a72cc4fd0b56c1eafb4ef64aec9685460d5ac34de98ca78b6e29/orjson-3.10.18-cp313-cp313-win_arm64.whl", hash = "sha256:f54c1385a0e6aba2f15a40d703b858bedad36ded0491e55d35d905b2c34a4cc3", size = 131186 },
 ]
+
+[[package]]
+name = "owlready2"
+version = "0.48"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/79/01daa72fbd07b1d4dd0907356d0ae486a684f0bd4654430f27a3e31206ee/owlready2-0.48.tar.gz", hash = "sha256:86b4d8500d769a674c524b54397fdd738ff5d0a96878432b69f4d606d6a7a4d8", size = 27298462 }
 
 [[package]]
 name = "packaging"
