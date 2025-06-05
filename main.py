@@ -1,13 +1,10 @@
-from smolagents import CodeAgent, LiteLLMModel
-from smolagents.tools import ToolCollection
 import gradio as gr
-import requests
 import modal
 import sys
 import subprocess
 import time
-from .tools.meta_yml_tools import fetch_meta_yml,get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description,get_biotools_response
-
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
+from agents.query_ontology_db import agent
 # Define the custom image
 ollama_image = (
     modal.Image.debian_slim()
@@ -33,41 +30,6 @@ ollama_image = (
 
 # Initialize the Modal app with the custom image
 app = modal.App("agent-ontology", image=ollama_image)
-
-def chat_with_agent(message, history):
-    """ Function to handle chat messages and interact with the agent.
-    This function creates a new MCP connection for each request, allowing the agent to use tools from the MCP server.
-    """
-    try:
-        with ToolCollection.from_mcp(
-            {"url": "https://notredameslab-nf-ontology.hf.space/gradio_api/mcp/sse", "transport": "sse"},
-            trust_remote_code=True  # Acknowledge that we trust this remote MCP server
-        ) as tool_collection:
-
-
-            model = LiteLLMModel(
-                model_id="ollama/devstral:latest",
-                api_base="http://localhost:11434",
-            )
-
-            agent = CodeAgent(
-                tools=tool_collection.tools,
-                model=model,
-                additional_authorized_imports=["inspect", "json"]
-            )
-
-            additional_instructions = """
-            ADDITIONAL IMPORTANT INSTRUCTIONS:
-            use the tool "final_answer" in the code block to provide the answer to the user. Prints are only for debugging purposes. So, to give your results concatenate everything you want to print in a single "final_answer" call as such : final_answer(f"your answer here").
-            """
-
-            agent.system_prompt += additional_instructions
-
-            result = agent.run(message)
-            return str(result)
-            
-    except Exception as e:
-        return f"❌ Error: {e}\nType: {type(e).__name__}"
     
 def run_multi_agent(module_name): 
     meta_yml = get_meta_yml_file(module_name=module_name)
@@ -83,7 +45,17 @@ def run_multi_agent(module_name):
     """
     tool_name = "fastqc" # this would be the answer of the first agent
     meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
-    return(meta_info)
+    for input_tool in module_info["inputs"]:
+        for key, value in input_tool.items():
+            if key == "file":
+                result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
+                print(result)
+    
+    # TODO: placeholder
+    # This is returning the original meta.yml, but it should return the modified one with the ontologies added
+    with open("tmp_meta.yml", "w") as fh:
+        fh.write(meta_info)
+    return meta_info, "tmp_meta.yml" # TODO: placeholder
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
