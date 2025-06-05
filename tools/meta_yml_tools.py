@@ -105,7 +105,6 @@ def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
         print("Extracted metadata information from nf-core module meta.yml")
     return {"inputs": inputs, "outputs": outputs, "homepage": homepage_url, "documentation": documentation_rul, "bio_tools_id": bio_tools_id}
 
-
 def get_biotools_response(tool_name: str) -> list:
     """
     Try to get bio.tools information for a tool.
@@ -136,3 +135,57 @@ def get_biotools_response(tool_name: str) -> list:
     except requests.exceptions.RequestException as e:
         print(f"Could not find bio.tools information for '{tool_name}': {e}")
         return f"Could not find bio.tools information for '{tool_name}': {e}"
+
+def get_biotools_ontology(tool_name, entry_id:str) -> str:
+    """
+    Given a specific entry of the tools list associated to the module, return the biotools input ontology ID. 
+
+    Args:
+        biotools_id (str): The biotools ID to get the ontology ID for (selected by the agent from the list of tools)
+
+    Returns:
+        str: The biotools ontology ID in the format "biotools:<tool_name>".
+    """
+
+    url = f"https://bio.tools/api/t/?q={tool_name}&format=json"
+    try:
+        # Send a GET request to the API
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        # Parse the JSON response
+        data = response.text
+        data = json.loads(data)
+        data_list = data.get("list", [])
+
+        found = False
+
+        for tool in data_list:
+            # Select the tool with the given entry_id
+            if tool.get("name") == entry_id:
+                found = True
+                tool_function = tool.get("function")
+
+                format_terms = []
+
+                for fn in tool_function:
+                    for inp in fn.get("input", []):
+                        for fmt in inp.get("format", []):
+                            term = fmt.get("term", "Unknown")
+                            uri = fmt.get("uri", "No URI")
+                            format_terms.append((term, uri))
+                text_block = "List of EDAM formats used:\n"
+
+                for i, (term, uri) in enumerate(format_terms, start=1):
+                    text_block += f"{i}. {term} ({uri})\n"
+
+                print(text_block)
+                return format_terms
+
+        if not found:
+            print(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
+            return f"Could not find the entry '{entry_id}' for the tool {tool_name}"
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
+        return f"Could not find bio.tools information for '{tool_name}': {e}"
+
