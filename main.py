@@ -1,35 +1,7 @@
 import gradio as gr
-import modal
-import sys
-import subprocess
-import time
 from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
 from agents.query_ontology_db import agent
-# Define the custom image
-ollama_image = (
-    modal.Image.debian_slim()
-    .apt_install("curl", "gnupg", "software-properties-common", "procps")
-    .run_commands("curl -fsSL https://ollama.com/install.sh | sh")
-    .run_commands(
-        "bash -c 'ollama serve >/dev/null 2>&1 & "
-        "PID=$!; "
-        "sleep 10 && "
-        "ollama pull devstral:latest && "
-        "ollama pull qwen3:0.6b && "
-        "kill $PID'"
-    )
-    .pip_install(
-        "fastmcp>=2.6.1",
-        "gradio[mcp]>=5.0.0",
-        "huggingface_hub[mcp]>=0.32.2",
-        "mcp>=1.9.2",
-        "smolagents[litellm,mcp]>=1.17.0",
-        "textblob>=0.19.0",
-    )
-)
 
-# Initialize the Modal app with the custom image
-app = modal.App("agent-ontology", image=ollama_image)
     
 def run_multi_agent(module_name): 
     meta_yml = get_meta_yml_file(module_name=module_name)
@@ -79,29 +51,10 @@ def run_interface():
         fetch_btn.click(
             fn=run_multi_agent,  # TODO: change to final function
             inputs=module_input,
-            outputs=[meta_output]
+            outputs=[meta_output, download_button]
         )
     
     demo.launch(share=True)
 
-@app.function(keep_warm=1, gpu="A10G", timeout=2400)
-def main_remote():
-    # spin up Ollama daemon in the background
-    server = subprocess.Popen(["ollama", "serve"])
-    time.sleep(6) # give it a moment to bind :11434
-    try:
-        run_interface()
-    finally:
-        server.terminate()
-
-def main_local():
-    run_interface()
-
 if __name__ == "__main__":
-    # check if it is modal running the script or python running the script
-    # if it is modal, run the remote function
-    # if it is python, run the local function
-    if "modal" in sys.modules:
-        main_remote().remote()
-    else:
-        main_local()
+    run_interface()
