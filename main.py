@@ -2,13 +2,21 @@ from smolagents import CodeAgent, LiteLLMModel
 from smolagents.tools import ToolCollection
 import gradio as gr
 import requests
-from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, get_biotools_response
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
 
 def main(module_name): 
     meta_yml = get_meta_yml_file(module_name=module_name)
+    module_info = extract_module_name_description(meta_file=meta_yml)
     module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
     # TODO: agent to choose the right tool
-    tool_name = "fastqc"
+    # Only call the agent if there is more than one tool, otherwise get the first name
+    first_prompt = f"""
+        The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
+        Find the tool that best describes the module. Return only one tool. Return the name. 
+        This is the list of tools:
+        {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
+    """
+    tool_name = "fastqc" # this would be the answer of the first agent
     meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
 
 def chat_with_agent(message, history):
