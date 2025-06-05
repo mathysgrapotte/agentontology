@@ -34,21 +34,37 @@ def get_meta_yml_file(module_name: str) -> dict:
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"An error occurred while connecting to the URL: {url}. Error message: {e}")
 
-def extract_tools_from_meta_json(meta_file: dict) -> list:
+def extract_module_name_description(meta_file: dict) -> list:
     """
-    Extract the tools from the meta.yml file.
+    Extract the name and description of the module from the meta.yml file.
 
     Args:
         meta_file (str): The content of the module meta.yml file in json format.
 
     Returns:
-        list: A list of tools.
+        list: A list containing two elements, the module name and the module description.
     """
-    tools_names = []
+    name = meta_file.get("name", "")
+    description = meta_file.get("description", "")
+    return [name, description]
+
+def extract_tools_from_meta_json(meta_file: dict) -> list[list]:
+    """
+    Extract the tools and description from the meta.yml file.
+
+    Args:
+        meta_file (str): The content of the module meta.yml file in json format.
+
+    Returns:
+        list: A list of lists. Each element of the list is one tool, the sub-list contains two elements, the name and description of the tool.
+    """
+    module_tools = []
     tools_list = meta_file.get("tools", [])
     for tool in tools_list:
-        tools_names.append(list(tool.keys())[0])
-    return tools_names
+        name = list(tool.keys())[0]
+        description = tool[name].get("description", "")
+        module_tools.append([name, description])
+    return module_tools
 
 def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
     """
