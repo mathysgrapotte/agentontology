@@ -16,7 +16,7 @@ def main(module_name):
         This is the list of tools:
         {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
     """
-    tool_name = "fastqc"
+    tool_name = "fastqc" # this would be the answer of the first agent
     meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
 
 def chat_with_agent(message, history):
