@@ -5,7 +5,11 @@ import requests
 from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json
 
 def main(module_name): 
-    pass
+    meta_yml = get_meta_yml_file(module_name=module_name)
+    module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
+    # TODO: agent to choose the right tool
+    tool_name = "fastqc"
+    meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
 
 def chat_with_agent(message, history):
     """Initialize MCP client for each request to avoid connection issues"""
