@@ -1,24 +1,61 @@
 import gradio as gr
-from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description
+from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
 from agents.query_ontology_db import agent
 import yaml
 
     
 def run_multi_agent(module_name): 
-    print(module_name)
+
+    ### RETRIEVE INFORMATION FROM META.YML ###
+
     meta_yml = get_meta_yml_file(module_name=module_name)
     module_info = extract_module_name_description(meta_file=meta_yml)
     module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
-    # TODO: agent to choose the right tool
-    # Only call the agent if there is more than one tool, otherwise get the first name
-    first_prompt = f"""
-        The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
-        Find the tool that best describes the module. Return only one tool. Return the name. 
-        This is the list of tools:
-        {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
-    """
-    tool_name = "fastqc" # this would be the answer of the first agent
-    meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
+
+    ### FIND THE MODULE TOOL ###
+
+    if len(module_info) == 1:
+        module_yaml_name = module_info[0]
+        module_description = module_info[1]
+    else:
+        # TODO: agent to choose the right tool
+        first_prompt = f"""
+            The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
+            Find the tool that best describes the module. Return only one tool. Return the name. 
+            This is the list of tools:
+            {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
+        """
+        module_yaml_name = "fastqc" # TODO: this would be the answer of the first agent
+        module_description = "my description" # TODO: this would be the answer of the first agent
+
+    ### EXTRACT INFO FROM META.YML ###
+
+    meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=module_yaml_name)
+
+    ### FETCH ONOTOLOGIES FROM BIO.TOOLS ###
+
+    if meta_info["bio_tools_id"] == "":
+        bio_tools_list = get_biotools_response(module_yaml_name)
+
+        # TODO: agent to select the best match from all possible bio.tools entries
+        # The answer should be the entry ID
+        second_prompt = "" # TODO: update
+        bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
+
+        ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
+
+        ### CLASSIFY ALL INPUT AND OUTPUT ONTOLOGIES INTO THE APPROPRIATE CHANNELS ###
+
+        # TODO !!!
+        # Create an agent which classifies the ontologeis into the right i/o
+        # From biotols we get a list of ontologies for inputs and a list of ontologies for outputs
+        # but in most nf-core modules we will have finles separated into different channels
+        # For example bam, bai, sam...
+        # The agent should recieve the i/o from the module, the ontologies found in bio.tools, and assigne the correct ones to each channel.
+
+    ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
+
     for input_channel in meta_info["inputs"]:
         for ch_element in input_channel:
             for key, value in ch_element.items():
@@ -30,6 +67,16 @@ def run_multi_agent(module_name):
                     """)
                     print(result)
     
+    ### FINAL AGENT TO BENCHMARK AND FIND THE COMMONALITIES BETWEEN BIO.TOOLS AND EDAM ###
+
+    # TODO !!!
+    # Get results from bio.tools and EDAM
+    # The agent should doublecheck if results are correct (?)
+    # and return the ones that make more sense
+    # and remove duplicates (this can be done through a python function?)
+
+    ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
+
     # TODO: placeholder
     # This is returning the original meta.yml, but it should return the modified one with the ontologies added
     with open("tmp_meta.yml", "w") as fh:
