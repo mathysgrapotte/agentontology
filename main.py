@@ -43,7 +43,8 @@ def chat_with_agent(message, history):
             {"url": "https://notredameslab-nf-ontology.hf.space/gradio_api/mcp/sse", "transport": "sse"},
             trust_remote_code=True  # Acknowledge that we trust this remote MCP server
         ) as tool_collection:
-            
+
+
             model = LiteLLMModel(
                 model_id="ollama/devstral:latest",
                 api_base="http://localhost:11434",
