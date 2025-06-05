@@ -115,11 +115,46 @@ def search_edam_ontology_by_search_term(search_term: str = None) -> list:
     
     return matches
 
+@tool
+def get_edam_description_from_ontology_format_class(term_id: str) -> str:
+    """
+    Simple function to get the description (label) of an EDAM ontology term, input should be the ontology class name (for example: 'format_1930'), use this tool to double check if an ontology is correct.
+    
+    Args:
+        term_id: EDAM term ID like "format_1930" or "data_1234"
+    
+    Returns:
+        str: The description/label of the term, or None if not found
+    """
+    onto = load_edam_ontology()
+    if not onto:
+        return None
+    
+    try:
+        # Get the class directly by name
+        term_class = getattr(onto, term_id)
+        
+        # Try to get hasDefinition first (detailed description)
+        if hasattr(term_class, 'hasDefinition') and term_class.hasDefinition:
+            return str(term_class.hasDefinition[0])
+        
+        # Fall back to comment if no definition
+        elif hasattr(term_class, 'comment') and term_class.comment:
+            return str(term_class.comment[0])
+        
+        # Fall back to label if no comment or definition
+        elif hasattr(term_class, 'label') and term_class.label:
+            return str(term_class.label[0])
+        
+        else:
+            return f"No description found for {term_id}"
+            
+    except AttributeError:
+        return f"Term {term_id} not found in EDAM ontology"
+
 # Example usage:
 if __name__ == "__main__":
-    tool_list = [search_edam_ontology_by_search_term]
-
-    print(get_fastqc_input_yaml()[0][0].keys())
+    tool_list = [search_edam_ontology_by_search_term, get_edam_description_from_ontology_format_class]
 
     model = LiteLLMModel(
     model_id="ollama/devstral:latest",
