@@ -2,7 +2,7 @@ from smolagents import CodeAgent, LiteLLMModel
 from smolagents.tools import ToolCollection
 import gradio as gr
 import requests
-from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response, get_biotools_ontology
 
 def main(module_name): 
     meta_yml = get_meta_yml_file(module_name=module_name)

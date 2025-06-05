@@ -138,7 +138,7 @@ def get_biotools_response(tool_name: str) -> list:
 
 def get_biotools_ontology(tool_name, entry_id:str) -> str:
     """
-    Given a specific entry of the tools list associated to the module, return the biotools ontology ID. 
+    Given a specific entry of the tools list associated to the module, return the biotools input ontology ID. 
 
     Args:
         biotools_id (str): The biotools ID to get the ontology ID for (selected by the agent from the list of tools)
