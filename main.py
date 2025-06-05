@@ -1,11 +1,12 @@
 from smolagents import CodeAgent, LiteLLMModel
 from smolagents.tools import ToolCollection
 import gradio as gr
+import requests
 import modal
 import sys
 import subprocess
 import time
-from .tools.meta_yml_tools import fetch_meta_yml,get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description
+from .tools.meta_yml_tools import fetch_meta_yml,get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description,get_biotools_response
 
 # Define the custom image
 ollama_image = (
