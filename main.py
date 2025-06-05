@@ -2,6 +2,11 @@ from smolagents import CodeAgent, LiteLLMModel
 from smolagents.tools import ToolCollection
 import gradio as gr
 import requests
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json
+
+def main(module_name): 
+    pass
+
 def chat_with_agent(message, history):
     """Initialize MCP client for each request to avoid connection issues"""
     try:
