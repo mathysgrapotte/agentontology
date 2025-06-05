@@ -23,7 +23,11 @@ def run_multi_agent(module_name):
         for ch_element in input_channel:
             for key, value in ch_element.items():
                 if key == "file":
-                    result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
+                    result = agent.run(f"""
+                        You are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', 
+                        search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), 
+                        and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')
+                    """)
                     print(result)
     
     # TODO: placeholder
