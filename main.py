@@ -44,11 +44,24 @@ def chat_with_agent(message, history):
             trust_remote_code=True  # Acknowledge that we trust this remote MCP server
         ) as tool_collection:
 
-        model = LiteLLMModel(
-            model_id="ollama/devstral:latest",
-            #model_id="ollama/qwen3:0.6b",
-            api_base="http://localhost:11434",
-        )
+
+            model = LiteLLMModel(
+                model_id="ollama/devstral:latest",
+                api_base="http://localhost:11434",
+            )
+
+            agent = CodeAgent(
+                tools=tool_collection.tools,
+                model=model,
+                additional_authorized_imports=["inspect", "json"]
+            )
+
+            additional_instructions = """
+            ADDITIONAL IMPORTANT INSTRUCTIONS:
+            use the tool "final_answer" in the code block to provide the answer to the user. Prints are only for debugging purposes. So, to give your results concatenate everything you want to print in a single "final_answer" call as such : final_answer(f"your answer here").
+            """
+
+            agent.system_prompt += additional_instructions
 
             result = agent.run(message)
             return str(result)
