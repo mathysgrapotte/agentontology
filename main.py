@@ -1,9 +1,11 @@
 import gradio as gr
 from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, get_biotools_response
 from agents.query_ontology_db import agent
+import yaml
 
     
 def run_multi_agent(module_name): 
+    print(module_name)
     meta_yml = get_meta_yml_file(module_name=module_name)
     module_info = extract_module_name_description(meta_file=meta_yml)
     module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
@@ -17,17 +19,18 @@ def run_multi_agent(module_name):
     """
     tool_name = "fastqc" # this would be the answer of the first agent
     meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=tool_name)
-    for input_tool in module_info["inputs"]:
-        for key, value in input_tool.items():
-            if key == "file":
-                result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
-                print(result)
+    for input_channel in meta_info["inputs"]:
+        for ch_element in input_channel:
+            for key, value in ch_element.items():
+                if key == "file":
+                    result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
+                    print(result)
     
     # TODO: placeholder
     # This is returning the original meta.yml, but it should return the modified one with the ontologies added
     with open("tmp_meta.yml", "w") as fh:
-        fh.write(meta_info)
-    return meta_info, "tmp_meta.yml" # TODO: placeholder
+        yaml.dump(meta_yml, fh)
+    return meta_yml, "tmp_meta.yml" # TODO: placeholder
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.

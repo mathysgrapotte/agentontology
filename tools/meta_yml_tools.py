@@ -24,7 +24,7 @@ def get_meta_yml_file(module_name: str) -> dict:
     else:
         tool, subtool = module_name, ""
 
-    if subtool:
+    if subtool != "":
         url = f"https://raw.githubusercontent.com/nf-core/modules/refs/heads/master/modules/nf-core/{tool}/{subtool}/meta.yml"
     else:
         url = f"https://raw.githubusercontent.com/nf-core/modules/refs/heads/master/modules/nf-core/{tool}/meta.yml"
