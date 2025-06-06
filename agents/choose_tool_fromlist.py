@@ -1,5 +1,5 @@
 from smolagents import CodeAgent, LiteLLMModel
-from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
+from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology_input, get_biotools_ontology_output
 
 model = LiteLLMModel(
     # model_id="ollama/devstral:latest",
@@ -9,7 +9,7 @@ model = LiteLLMModel(
     max_tokens=5000,
 )
 
-tool_list = [get_biotools_response, get_biotools_ontology]
+tool_list = [get_biotools_response, get_biotools_ontology_input, get_biotools_ontology_output]
 
 agent = CodeAgent(
     tools=tool_list,
