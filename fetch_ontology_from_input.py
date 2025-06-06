@@ -161,7 +161,7 @@ if __name__ == "__main__":
     #model_id="ollama/qwen3:0.6b",
     api_base="http://localhost:11434",
     temperature=0.0,
-    max_tokens=5000,
+    max_tokens=8000,
     )
 
     agent = CodeAgent(
@@ -175,5 +175,5 @@ if __name__ == "__main__":
     for input_tool in input_yaml[0]:
         for key, value in input_tool.items():
             if key != "meta":
-                result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')")
+                result = agent.run(f"you are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
                 print(result)
