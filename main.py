@@ -1,5 +1,5 @@
 import gradio as gr
-from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, update_meta_yml
 from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
 from agents.query_ontology_db import agent
 import yaml
@@ -90,7 +90,7 @@ def extract_format_terms_from_result(result):
         return [item for item in result if isinstance(item, str) and item.startswith('format_')]
     return []
 
-def create_progress_bar_html(progress, status, current_input, current_count=0, total_count=0):
+def create_progress_bar_html(progress, status, current_files, current_count=0, total_count=0):
     """Create an animated progress bar HTML with nf-core styling"""
     
     # Determine progress bar color based on status
@@ -150,7 +150,10 @@ def format_ontology_results_html(results, meta_yml):
                 if value.get("type") == "file":
                     input_info[key] = value.get("description", "No description available")
     
-    for input_name, result in results["input"].items():
+    final = {}
+    final.update(results["input"])
+    final.update(results["output"])
+    for input_name, result in final.items():
         format_terms = extract_format_terms_from_result(result)
         description = input_info.get(input_name, "No description available")
         
@@ -165,7 +168,6 @@ def format_ontology_results_html(results, meta_yml):
         
         if format_terms:
             for term in format_terms:
-                term_id = term.replace("format_", "")
                 link_url = f"http://edamontology.org/{term}"
                 html_content += f"""
                 <div class='ontology-card'>
@@ -216,50 +218,77 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
         time.sleep(0.5)
 
         ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
-        # Count total file inputs
-        total_file_inputs = 0
-        file_inputs = []
+        # Count total file inputs + outputs
+        total_files = 0
+        file = []
         for input_channel in meta_yml.get("input", []):
             for ch_element in input_channel:
                 for key, value in ch_element.items():
                     if value.get("type") == "file":
-                        total_file_inputs += 1
-                        file_inputs.append((key, value))
-        
-        if total_file_inputs == 0:
+                        total_files += 1
+                        file.append((key, value))
+        for output in meta_yml.get("output", []):
+            for key, output_channel in output.items():
+                for out_element in output_channel:
+                    for element_name, value in out_element.items():
+                        if value["type"] == "file" and element_name != "versions.yml":
+                            total_files += 1
+                            file.append((key, value))
+
+        if total_files == 0:
             if progress_callback:
                 progress_callback(100, "No file inputs found", "", 0, 0)
             formatted_results = format_ontology_results_html(results, meta_yml)
             return formatted_results, "tmp_meta.yml"
+
+        current_files = 0
         
-        current_input = 0
-        
+        #inputs
         for input_channel in meta_yml["input"]:
             for ch_element in input_channel:
                 for key, value in ch_element.items():
                     if value["type"] == "file":
                         # Update progress BEFORE processing starts for this input
                         if progress_callback:
-                            progress_callback(int((current_input / total_file_inputs) * 100), f"Starting analysis of input: {key}", key, current_input, total_file_inputs)
+                            progress_callback(int((current_files / total_files) * 100), f"Starting analysis of input: {key}", key, current_files, total_files)
                         
                         # This is where the agent runs - logs should be captured automatically
                         result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
                         results["input"][key] = result
-                        
-                        format_terms = extract_format_terms_from_result(result)
-                        
+                                                
                         # Update progress AFTER processing completes for this input
-                        current_input += 1
-                        progress = int((current_input / total_file_inputs) * 100)
+                        current_files += 1
+                        progress = int((current_files / total_files) * 100)
                         if progress_callback:
-                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_input, total_file_inputs)
+                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_files, total_files)
+        
+        #outputs
+        for output in meta_yml.get("output", []):
+            for key, output_channel in output.items():
+                for out_element in output_channel:
+                    for element_name, value in out_element.items():
+                        if value["type"] == "file" and element_name != "versions.yml":
+                            # Update progress BEFORE processing starts for this output
+                            if progress_callback:
+                                progress_callback(int((current_files / total_files) * 100), f"Starting analysis of output: {key}", key, current_files, total_files)
+                            
+                            # This is where the agent runs - logs should be captured automatically
+                            result = agent.run(f"You are presentend with a file format for the output '{element_name}', which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...]). The output name {key} can also give you more information.")
+                            results["output"][key] = result
+                                                        
+                            # Update progress AFTER processing completes for this output
+                            current_files += 1
+                            progress = int((current_files / total_files) * 100)
+                            if progress_callback:
+                                progress_callback(progress, f"Completed analysis of output: {key}", key, current_files, total_files)
 
         if progress_callback:
-            progress_callback(100, "Analysis complete! Generating results...", "", total_file_inputs, total_file_inputs)
+            progress_callback(100, "Analysis complete! Generating results...", "", total_files, total_files)
 
         ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
         with open("tmp_meta.yml", "w") as fh:
-            yaml.dump(meta_yml, fh)
+            updated_meta_yml = update_meta_yml(results["input"], results["output"], meta_yml)
+            yaml.dump(updated_meta_yml, fh)
         
     except Exception as e:
         if progress_callback:
@@ -276,12 +305,12 @@ def stream_logs_and_run_agent(module_name):
     
     # Start the agent in a separate thread
     result_container = {"ontology_output": None, "file_output": None, "error": None}
-    progress_container = {"progress": 0, "status": "Initializing...", "current_input": "", "current_count": 0, "total_count": 0}
+    progress_container = {"progress": 0, "status": "Initializing...", "current_files": "", "current_count": 0, "total_count": 0}
     
-    def progress_callback(progress, status, current_input, current_count=0, total_count=0):
+    def progress_callback(progress, status, current_files, current_count=0, total_count=0):
         progress_container["progress"] = progress
         progress_container["status"] = status
-        progress_container["current_input"] = current_input
+        progress_container["current_files"] = current_files
         progress_container["current_count"] = current_count
         progress_container["total_count"] = total_count
     
@@ -314,7 +343,7 @@ def stream_logs_and_run_agent(module_name):
             progress_html = create_progress_bar_html(
                 progress_container["progress"],
                 progress_container["status"],
-                progress_container["current_input"],
+                progress_container["current_files"],
                 progress_container["current_count"],
                 progress_container["total_count"]
             )
@@ -329,7 +358,7 @@ def stream_logs_and_run_agent(module_name):
                 progress_html = create_progress_bar_html(
                     progress_container["progress"],
                     progress_container["status"],
-                    progress_container["current_input"],
+                    progress_container["current_files"],
                     progress_container["current_count"],
                     progress_container["total_count"]
                 )
