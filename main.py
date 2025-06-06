@@ -11,6 +11,7 @@ import threading
 from contextlib import redirect_stdout, redirect_stderr
 import queue
 import sys
+from ansi2html import Ansi2HTMLConverter as Ansi2HtmlConverter
 
 # Global log queue for streaming logs to Gradio
 log_queue = queue.Queue()
@@ -41,17 +42,14 @@ class QueueWriter:
     """A stream-like object that writes to a queue, to capture stdout."""
     def __init__(self, queue):
         self.queue = queue
-        self.ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     def write(self, text):
         # Print raw output to terminal to preserve colors
         sys.__stdout__.write(text)
         sys.__stdout__.flush()
 
-        # Clean ANSI codes for Gradio display
-        clean_text = self.ansi_escape.sub('', text)
-        if clean_text.strip():
-            self.queue.put(clean_text.rstrip())
+        # Put the raw text with ANSI codes into the queue for HTML conversion
+        self.queue.put(text)
 
     def flush(self):
         # Also flush stdout
@@ -227,20 +225,23 @@ def stream_logs_and_run_agent(module_name):
     
     # Stream logs while the agent is running
     accumulated_logs = ""
-    
+    converter = Ansi2HtmlConverter(dark_bg=True, line_wrap=False)
+
     while agent_thread.is_alive() or not log_queue.empty():
         try:
             # Get log message with a short timeout
             log_msg = log_queue.get(timeout=0.1)
-            accumulated_logs += log_msg + "\n"
+            accumulated_logs += log_msg
             
             # Yield the updated logs
-            yield f"```text\n{accumulated_logs}\n```", None, None
+            html_logs = converter.convert(accumulated_logs, full=False)
+            yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
             
         except queue.Empty:
             # If no new logs and thread is still alive, yield current state
             if agent_thread.is_alive():
-                yield f"```text\n{accumulated_logs}\n```", None, None
+                html_logs = converter.convert(accumulated_logs, full=False)
+                yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
             continue
     
     # Wait for the thread to complete
@@ -255,10 +256,11 @@ def stream_logs_and_run_agent(module_name):
             break
     
     # Return final results
+    html_logs = converter.convert(accumulated_logs, full=False)
     if result_container["error"]:
-        yield f"```text\n{accumulated_logs}\n```", None, None
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
     else:
-        yield f"```text\n{accumulated_logs}\n```", result_container["ontology_output"], result_container["file_output"]
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", result_container["ontology_output"], result_container["file_output"]
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
@@ -320,8 +322,8 @@ def run_interface():
     }
     
     /* Live logs styling */
-    .live-logs {
-        background: rgba(33, 37, 41, 0.95) !important;
+    .live-logs-container {
+        background: #212529 !important;
         border: 2px solid rgba(36, 176, 100, 0.4) !important;
         border-radius: 15px !important;
         color: #e9ecef !important;
@@ -331,24 +333,33 @@ def run_interface():
         max-height: 400px !important;
         overflow-y: auto !important;
         padding: 1rem !important;
+        margin: 0 auto !important;
+        width: 95% !important;
+        text-align: center !important;
+    }
+
+    .live-logs {
         white-space: pre-wrap !important;
+        word-wrap: break-word;
+        display: inline-block !important;
+        text-align: left !important;
     }
     
-    .live-logs::-webkit-scrollbar {
+    .live-logs-container::-webkit-scrollbar {
         width: 8px;
     }
     
-    .live-logs::-webkit-scrollbar-track {
+    .live-logs-container::-webkit-scrollbar-track {
         background: rgba(52, 58, 64, 0.5);
         border-radius: 4px;
     }
     
-    .live-logs::-webkit-scrollbar-thumb {
+    .live-logs-container::-webkit-scrollbar-thumb {
         background: rgba(36, 176, 100, 0.6);
         border-radius: 4px;
     }
     
-    .live-logs::-webkit-scrollbar-thumb:hover {
+    .live-logs-container::-webkit-scrollbar-thumb:hover {
         background: rgba(36, 176, 100, 0.8);
     }
     
@@ -761,9 +772,9 @@ def run_interface():
                 """)
                 
                 # Live log display
-                live_logs = gr.Markdown(
-                    "**Logs will appear here when the agent starts working...**",
-                    elem_classes="live-logs",
+                live_logs = gr.HTML(
+                    "<div class='live-logs-container'><pre class='live-logs'>Logs will appear here...</pre></div>",
+                    label="smolagents live logs"
                 )
 
         # Event handling for the streaming logs
