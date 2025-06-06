@@ -26,7 +26,7 @@ def format_ontology_results_html(results, meta_yml):
     html_content = """
     <div class='ontology-results'>
         <div class='results-header'>
-            <h2>🧬 Discovered EDAM Ontologies</h2>
+            <h2> Discovered EDAM Ontologies</h2>
             <p>Click on any ontology term to view detailed information in the EDAM database</p>
         </div>
     """
@@ -46,7 +46,7 @@ def format_ontology_results_html(results, meta_yml):
         html_content += f"""
         <div class='input-section'>
             <div class='input-header'>
-                <h3>📁 {input_name}</h3>
+                <h3>{input_name}</h3>
                 <p class='input-description'>{description}</p>
             </div>
             <div class='ontologies-container'>
@@ -611,13 +611,12 @@ def run_interface():
             with gr.Column(scale=1, elem_classes="input-container"):
                 gr.HTML("""
                 <div class="section-header">
-                    📝 Module Configuration
-                </div>
+                    nf-core module
                 """)
                 
                 # create the input textbox for the nf-core module name
                 module_input = gr.Textbox(
-                    label="🔧 nf-core Module Name", 
+                    label="nf-core module name", 
                     placeholder="e.g. fastqc, samtools, bwa...",
                     info="Enter the name of the nf-core module you want to enhance",
                     elem_classes="gr-textbox"
@@ -637,18 +636,18 @@ def run_interface():
             with gr.Column(scale=1, elem_classes="output-container"):
                 gr.HTML("""
                 <div class="section-header">
-                    📊 Enhanced Results
+                    discovered ontologies
                 </div>
                 """)
                 
                 # create the output HTML component for the ontology results
                 ontology_output = gr.HTML(
-                    label="🧬 Discovered EDAM Ontologies",
+                    label="discovered EDAM ontologies",
                     elem_classes="result-container"
                 )
                 
                 download_button = gr.File(
-                    label="💾 Download Enhanced meta.yml",
+                    label="download original meta.yml with ontologies",
                     elem_classes="result-container"
                 )
 
