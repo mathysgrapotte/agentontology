@@ -1,6 +1,8 @@
 import json
 import requests
+from smolagents import tool
 
+@tool
 def get_biotools_response(tool_name: str) -> list:
     """
     Try to get bio.tools information for a tool.
@@ -32,15 +34,18 @@ def get_biotools_response(tool_name: str) -> list:
         print(f"Could not find bio.tools information for '{tool_name}': {e}")
         return f"Could not find bio.tools information for '{tool_name}': {e}"
 
-def get_biotools_ontology(tool_name, entry_id:str) -> str:
+@tool
+def get_biotools_ontology(tool_name:str, entry_id:str) -> list:
     """
     Given a specific entry of the tools list associated to the module, return the biotools input ontology ID. 
 
     Args:
-        biotools_id (str): The biotools ID to get the ontology ID for (selected by the agent from the list of tools)
+        tool_name (str): The name of the tool that gets all the associated biotools entries. 
+        entry_id(str): The specific entry ID of the biotools db that best matches the nf-core module tool.
+        
 
     Returns:
-        str: The biotools ontology ID in the format "biotools:<tool_name>".
+        list: The biotools ontology ID assoiated to each possible input file.
     """
 
     url = f"https://bio.tools/api/t/?q={tool_name}&format=json"

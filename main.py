@@ -2,6 +2,7 @@ import gradio as gr
 from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description
 from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
 from agents.query_ontology_db import agent
+from agents.choose_tool_fromlist import agent as bio_tools_agent
 import yaml
 
     
@@ -36,14 +37,34 @@ def run_multi_agent(module_name):
     ### FETCH ONOTOLOGIES FROM BIO.TOOLS ###
 
     if meta_info["bio_tools_id"] == "":
-        bio_tools_list = get_biotools_response(module_yaml_name)
+
+        second_prompt = f"""The tool {module_yaml_name} of the nf-core module {module_name} has different entries in the biotools database.
+                            Find all entries associated to the tool {module_yaml_name} in the biotools database, and return a list with each entry and its description.
+                            Return the list in the following format: [(entry_id, description), (entry_id, description), ...]. 
+                            
+                            From the list of entries in the biotools database, choose the entry that best matches the nf-core module tool {module_yaml_name}. 
+                            Return the correct entry name.
+                            
+                            Once you have the correct entry name, use it to extract the biotools input ontology ID. Return the ontology ID in the following forma: 
+                            [(file_term, ontology_id, ...)]"""
+        
+
+    result = bio_tools_agent.run(second_prompt)
+    print(result)
+        
+
+        #bio_tools_list = get_biotools_response(module_yaml_name)
+
+
 
         # TODO: agent to select the best match from all possible bio.tools entries
         # The answer should be the entry ID
-        second_prompt = "" # TODO: update
-        bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
+        # second_prompt = f"""The tool {module_yaml_name} has different entries in the biotools database. The list with each entry and its description
+        #                     is the following: {bio_tools_list}. From this list, choose the entry that best matches the nf-core module tool""" # TODO: update
+        
+        # bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
 
-        ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
+        # ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
 
         ### CLASSIFY ALL INPUT AND OUTPUT ONTOLOGIES INTO THE APPROPRIATE CHANNELS ###
 
