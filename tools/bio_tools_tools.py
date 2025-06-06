@@ -1,5 +1,8 @@
 import json
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_biotools_response(tool_name: str) -> list:
     """
@@ -23,13 +26,13 @@ def get_biotools_response(tool_name: str) -> list:
         tool_info = [(tool.get("name"), tool.get("description", "")) for tool in data_list]
 
         for name, desc in tool_info:
-            print(f"Tool: {name}\nDescription: {desc}\n")
+            logger.info(f"Tool: {name}\nDescription: {desc}\n")
 
-        print(f"Found bio.tools information for '{tool_name}'")
+        logger.info(f"Found bio.tools information for '{tool_name}'")
         return tool_info
 
     except requests.exceptions.RequestException as e:
-        print(f"Could not find bio.tools information for '{tool_name}': {e}")
+        logger.error(f"Could not find bio.tools information for '{tool_name}': {e}")
         return f"Could not find bio.tools information for '{tool_name}': {e}"
 
 def get_biotools_ontology(tool_name, entry_id:str) -> str:
@@ -74,13 +77,13 @@ def get_biotools_ontology(tool_name, entry_id:str) -> str:
                 for i, (term, uri) in enumerate(format_terms, start=1):
                     text_block += f"{i}. {term} ({uri})\n"
 
-                print(text_block)
+                logger.info(text_block)
                 return format_terms
 
         if not found:
-            print(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
+            logger.error(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
             return f"Could not find the entry '{entry_id}' for the tool {tool_name}"
     
     except requests.exceptions.RequestException as e:
-        print(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
+        logger.error(f"Could not find the entry '{entry_id}' for the tool {tool_name}")
         return f"Could not find bio.tools information for '{tool_name}': {e}"

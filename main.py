@@ -10,69 +10,67 @@ def run_multi_agent(module_name):
     ### RETRIEVE INFORMATION FROM META.YML ###
 
     meta_yml = get_meta_yml_file(module_name=module_name)
-    module_info = extract_module_name_description(meta_file=meta_yml)
-    module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
+    # module_info = extract_module_name_description(meta_file=meta_yml)
+    # module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
 
-    ### FIND THE MODULE TOOL ###
+    # ### FIND THE MODULE TOOL ###
 
-    if len(module_info) == 1:
-        module_yaml_name = module_info[0]
-        module_description = module_info[1]
-    else:
-        # TODO: agent to choose the right tool
-        first_prompt = f"""
-            The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
-            Find the tool that best describes the module. Return only one tool. Return the name. 
-            This is the list of tools:
-            {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
-        """
-        module_yaml_name = "fastqc" # TODO: this would be the answer of the first agent
-        module_description = "my description" # TODO: this would be the answer of the first agent
+    # if len(module_info) == 1:
+    #     module_yaml_name = module_info[0]
+    #     module_description = module_info[1]
+    # else:
+    #     # TODO: agent to choose the right tool
+    #     first_prompt = f"""
+    #         The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
+    #         Find the tool that best describes the module. Return only one tool. Return the name. 
+    #         This is the list of tools:
+    #         {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
+    #     """
+    #     module_yaml_name = "fastqc" # TODO: this would be the answer of the first agent
+    #     module_description = "my description" # TODO: this would be the answer of the first agent
 
-    ### EXTRACT INFO FROM META.YML ###
+    # ### EXTRACT INFO FROM META.YML ###
 
-    meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=module_yaml_name)
+    # meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=module_yaml_name)
 
-    ### FETCH ONOTOLOGIES FROM BIO.TOOLS ###
+    # ### FETCH ONOTOLOGIES FROM BIO.TOOLS ###
 
-    if meta_info["bio_tools_id"] == "":
-        bio_tools_list = get_biotools_response(module_yaml_name)
+    # if meta_info["bio_tools_id"] == "":
+    #     bio_tools_list = get_biotools_response(module_yaml_name)
 
-        # TODO: agent to select the best match from all possible bio.tools entries
-        # The answer should be the entry ID
-        second_prompt = "" # TODO: update
-        bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
+    #     # TODO: agent to select the best match from all possible bio.tools entries
+    #     # The answer should be the entry ID
+    #     second_prompt = "" # TODO: update
+    #     bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
 
-        ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
+    #     ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
 
-        ### CLASSIFY ALL INPUT AND OUTPUT ONTOLOGIES INTO THE APPROPRIATE CHANNELS ###
+    #     ### CLASSIFY ALL INPUT AND OUTPUT ONTOLOGIES INTO THE APPROPRIATE CHANNELS ###
 
-        # TODO !!!
-        # Create an agent which classifies the ontologeis into the right i/o
-        # From biotols we get a list of ontologies for inputs and a list of ontologies for outputs
-        # but in most nf-core modules we will have finles separated into different channels
-        # For example bam, bai, sam...
-        # The agent should recieve the i/o from the module, the ontologies found in bio.tools, and assigne the correct ones to each channel.
+    #     # TODO !!!
+    #     # Create an agent which classifies the ontologeis into the right i/o
+    #     # From biotols we get a list of ontologies for inputs and a list of ontologies for outputs
+    #     # but in most nf-core modules we will have finles separated into different channels
+    #     # For example bam, bai, sam...
+    #     # The agent should recieve the i/o from the module, the ontologies found in bio.tools, and assigne the correct ones to each channel.
 
-    ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
+    # ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
 
-    results = {"inputs": {}, "outputs": {}}
+    results = {"input": {}, "output": {}}
 
-    for input_channel in meta_info["inputs"]:
+    for input_channel in meta_yml["input"]:
         for ch_element in input_channel:
             for key, value in ch_element.items():
                 if value["type"] == "file":
                     result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-                    results["inputs"][key] = result
+                    results["input"][key] = result
 
-    for output_channel in meta_info["outputs"]:
-        for ch_element in output_channel:
-            for key, value in ch_element.items():
-                if value["type"] == "file":
-                    result = agent.run(f"You are presentend with a file format for the output {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-                    results["outputs"][key] = result
-
-    print(results)
+    # for output_channel in meta_info["outputs"]:
+    #     for ch_element in output_channel:
+    #         for key, value in ch_element.items():
+    #             if value["type"] == "file":
+    #                 result = agent.run(f"You are presentend with a file format for the output {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
+    #                 results["outputs"][key] = result
     
     ### FINAL AGENT TO BENCHMARK AND FIND THE COMMONALITIES BETWEEN BIO.TOOLS AND EDAM ###
 
