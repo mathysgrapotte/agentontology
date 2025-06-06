@@ -73,7 +73,7 @@ def run_multi_agent(module_name):
                             - Do **not** include any format ontology unless the file **contains data** of that type.
                             - If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
                             - If no ontologies are relevant, return an empty list.
-                            - Only return ontologies if you are **very sure** they are relevant to the file.
+                            - Only return ontologies if you are **very sure** they are totally relevant to the file.
 
                             Return the result using:
                             final_answer(['format_xxxx', 'format_yyyy'])
@@ -103,7 +103,7 @@ def run_multi_agent(module_name):
                             - Do **not** include any ontology unless the file is directly relevant to that ontology.
                             - If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
                             - If no ontologies are relevant, return an empty list.
-                            - Only return ontologies if you are **very sure** they are relevant to the file.
+                            - Only return ontologies if you are **very sure** they are totally relevant to the file.
 
                             Return the result using:
                             final_answer(['format_xxxx', 'format_yyyy'])
