@@ -762,20 +762,15 @@ def run_interface():
                     elem_classes="result-container"
                 )
         
-        # Live logs section
-        with gr.Row():
-            with gr.Column(elem_classes="input-container"):
-                gr.HTML("""
-                <div class="section-header">
-                    🦙 live agent logs
-                </div>
-                """)
-                
-                # Live log display
-                live_logs = gr.HTML(
-                    "<div class='live-logs-container'><pre class='live-logs'>Logs will appear here...</pre></div>",
-                    label="smolagents live logs"
-                )
+        # Live logs section (collapsible)
+        with gr.Accordion("🦙 Live Agent Logs", open=False, visible=True) as logs_accordion:
+            with gr.Row():
+                with gr.Column(elem_classes="input-container"):
+                    # Live log display
+                    live_logs = gr.HTML(
+                        "<div class='live-logs-container'><pre class='live-logs'>Logs will appear here...</pre></div>",
+                        label="smolagents live logs"
+                    )
 
         # Event handling for the streaming logs
         def clear_outputs():
