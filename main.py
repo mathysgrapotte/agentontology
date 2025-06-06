@@ -1,5 +1,5 @@
 import gradio as gr
-from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description
+from tools.meta_yml_tools import get_meta_yml_file, extract_tools_from_meta_json, extract_information_from_meta_json, extract_module_name_description, update_meta_yml
 from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
 from agents.query_ontology_db import agent
 import yaml
@@ -82,11 +82,11 @@ def run_multi_agent(module_name):
 
     ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
 
-    # TODO: placeholder
-    # This is returning the original meta.yml, but it should return the modified one with the ontologies added
     with open("tmp_meta.yml", "w") as fh:
-        yaml.dump(meta_yml, fh)
-    return meta_yml, "tmp_meta.yml" # TODO: placeholder
+        updated_meta_yml = update_meta_yml(results["input"], {}, meta_yml)
+        yaml.dump(updated_meta_yml, fh)
+    print(updated_meta_yml)
+    return updated_meta_yml, "tmp_meta.yml" 
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.

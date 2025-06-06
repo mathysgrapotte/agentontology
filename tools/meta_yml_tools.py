@@ -104,3 +104,38 @@ def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
         print("Extracted metadata information from nf-core module meta.yml")
     return {"inputs": inputs, "outputs": outputs, "homepage": homepage_url, "documentation": documentation_rul, "bio_tools_id": bio_tools_id}
 
+def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:dict) -> dict:
+    """
+    Update the meta.yml file with the final obtained ontologies
+
+    Args:
+        input_ontologies (dict): The final ontologies for inputs. 
+                            The dictionary contains the name of the file as key and a list of ontologies as value.
+        output_ontologies (dict): The final ontologies for outputs. 
+                            The dictionary contains the name of the file as key and a list of ontologies as value.
+        meta_yml (dict): The original meta.yml file content to be modified
+
+    Returns:
+        (dict): The updated meta.yml file
+    """
+    # Format ontology links
+    for key in input_ontologies.keys():
+        updated_list = []
+        for format in input_ontologies[key]:
+            updated_list.append({"edam": f"http://edamontology.org/{format}"})
+        input_ontologies[key] = updated_list
+
+
+    # inputs
+    for i, input_ch in enumerate(meta_yml["input"]):
+        for j, ch_element in enumerate(input_ch):
+            for key, value in ch_element.items():
+                if key in input_ontologies:
+                    try:
+                        meta_yml["input"][i][j][key]["ontologies"].append(input_ontologies[key])
+                    except KeyError:
+                        meta_yml["input"][i][j][key]["ontologies"] = input_ontologies[key]
+    # outputs
+    # for key,
+    
+    return meta_yml
