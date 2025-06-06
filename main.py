@@ -61,24 +61,31 @@ def run_multi_agent(module_name):
                 for key, value in ch_element.items():
                     if value['type'] == 'file':
                         prompt = f"""
-                            You are presented with the name of the file {key} and its description: {value['description']},
-                            and a list of EDAM ontologies (with the name and the ontology entry URL): {ontology}. 
+                            You are presented with:
+                                - the name of the file: {key}
+                                - its description: {value['description']}
 
-                            Your task is to select **all** ontology terms from the list that are relevant to the file, 
-                            based on the file name and description. Consider any format that could reasonably be used for
-                            {key} in bioinformatics workflows, including synonyms and related formats.
+                            You are also given a list of EDAM ontology entries (each with a name and a URL): {ontology}
 
-                            If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
-                            If none is relevent, return an empty list.
+                            Your task is to return only those ontology entries that are **directly relevant** to the content and purpose of the file.
 
-                            Return the answer as a Python list of ontology class names in a final_answer call, such as: 
-                            final_answer(['format_xxxx', 'format_yyyy']).
+                            ### Rules:
+                            - Do **not** include any format ontology unless the file **contains data** of that type.
+                            - If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
+                            - If no ontologies are relevant, return an empty list.
+                            - Only return ontologies if you are **very sure** they are relevant to the file.
+
+                            Return the result using:
+                            final_answer(['format_xxxx', 'format_yyyy'])
+                            or if you do not find any relevant ontology, return final_answer([])
                         """
                         result = agent_map_biotool_ontology_to_io.run(prompt)
                         print(result)
         print("++++++++++++++++++++++++++++++++++++++++++++++++")
         for channels in meta_info["outputs"]:
             for ch_name, output_list in channels.items():
+                if ch_name == "versions":
+                    continue
                 for output in output_list:
                     for key, value in output.items():
                         if value['type'] == 'file':
@@ -88,17 +95,19 @@ def run_multi_agent(module_name):
                                 - the extension: {key}
                                 - its description: {value['description']}
 
-                                You are also given a list of EDAM ontology entries (each with a name and a URL): {ontology}
+                            You are also given a list of EDAM ontology entries (each with a name and a URL): {ontology}
 
-                                Your task is to return only those ontology entries that are **directly relevant** to the content and purpose of the file.
+                            Your task is to return only those ontology entries that are **directly relevant** to the content and purpose of the file.
 
-                                ### Rules:
-                                - Do **not** include any format ontology unless the file **contains data** of that type.
-                                - If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
-                                - If no ontologies are relevant, return an empty list.
+                            ### Rules:
+                            - Do **not** include any ontology unless the file is directly relevant to that ontology.
+                            - If multiple ontologies are relevant, include all of them. Do not limit yourself to only one.
+                            - If no ontologies are relevant, return an empty list.
+                            - Only return ontologies if you are **very sure** they are relevant to the file.
 
-                                Return the result using:
-                                final_answer(['format_xxxx', 'format_yyyy'])
+                            Return the result using:
+                            final_answer(['format_xxxx', 'format_yyyy'])
+                            or if you do not find any relevant ontology, return final_answer([])
                             """
                         result = agent_map_biotool_ontology_to_io.run(prompt)
                         print(result)
