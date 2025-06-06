@@ -90,6 +90,35 @@ def extract_format_terms_from_result(result):
         return [item for item in result if isinstance(item, str) and item.startswith('format_')]
     return []
 
+def create_header_html(animation_state="idle"):
+    """Create header HTML with different animation states"""
+    
+    logo_class = "nf-core-logo"
+    confetti_html = ""
+    
+    if animation_state == "rotating":
+        logo_class = "nf-core-logo nf-core-logo-rotating"
+    elif animation_state == "celebrating":
+        # Generate confetti pieces
+        confetti_pieces = []
+        for i in range(50):
+            left = f"{(i * 7) % 100}%"
+            delay = f"{(i * 0.1) % 3}s"
+            duration = f"{2 + (i % 2)}s"
+            confetti_pieces.append(f'<div class="confetti-piece" style="left: {left}; animation-delay: {delay}; animation-duration: {duration};"></div>')
+        confetti_html = ''.join(confetti_pieces)
+    
+    return f"""
+    <div class="main-header">
+        <div class="logo-container">
+            <img src="https://raw.githubusercontent.com/nf-core/logos/master/nf-core-logos/nf-core-logo-square.png" class="{logo_class}" alt="nf-core logo">
+        </div>
+        <h1>🦙 nf-core Ontology Assistant</h1>
+        <p>Intelligent nf-core meta.yml enhancement with EDAM ontology terms</p>
+        <div class="confetti-container" id="confetti-container">{confetti_html}</div>
+    </div>
+    """
+
 def create_progress_bar_html(progress, status, current_input, current_count=0, total_count=0):
     """Create an animated progress bar HTML with nf-core styling"""
     
@@ -210,7 +239,7 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
     try:
         ### RETRIEVE INFORMATION FROM META.YML ###
         if progress_callback:
-            progress_callback(0, "Fetching meta.yml file...", "", 0, 0)
+            progress_callback(0, "Fetching meta.yml file...", "", 0, 0, "rotating")
         
         meta_yml = get_meta_yml_file(module_name=module_name)
         time.sleep(0.5)
@@ -228,7 +257,7 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
         
         if total_file_inputs == 0:
             if progress_callback:
-                progress_callback(100, "No file inputs found", "", 0, 0)
+                progress_callback(100, "No file inputs found", "", 0, 0, "celebrating")
             formatted_results = format_ontology_results_html(results, meta_yml)
             return formatted_results, "tmp_meta.yml"
         
@@ -240,7 +269,7 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
                     if value["type"] == "file":
                         # Update progress BEFORE processing starts for this input
                         if progress_callback:
-                            progress_callback(int((current_input / total_file_inputs) * 100), f"Starting analysis of input: {key}", key, current_input, total_file_inputs)
+                            progress_callback(int((current_input / total_file_inputs) * 100), f"Starting analysis of input: {key}", key, current_input, total_file_inputs, "rotating")
                         
                         # This is where the agent runs - logs should be captured automatically
                         result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
@@ -252,10 +281,10 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
                         current_input += 1
                         progress = int((current_input / total_file_inputs) * 100)
                         if progress_callback:
-                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_input, total_file_inputs)
+                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_input, total_file_inputs, "rotating")
 
         if progress_callback:
-            progress_callback(100, "Analysis complete! Generating results...", "", total_file_inputs, total_file_inputs)
+            progress_callback(100, "Analysis complete! Generating results...", "", total_file_inputs, total_file_inputs, "celebrating")
 
         ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
         with open("tmp_meta.yml", "w") as fh:
@@ -263,7 +292,7 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
         
     except Exception as e:
         if progress_callback:
-            progress_callback(0, f"Error: {str(e)}", "", 0, 0)
+            progress_callback(0, f"Error: {str(e)}", "", 0, 0, "idle")
         raise e
     
     # Format the results into a nice HTML display
@@ -276,14 +305,15 @@ def stream_logs_and_run_agent(module_name):
     
     # Start the agent in a separate thread
     result_container = {"ontology_output": None, "file_output": None, "error": None}
-    progress_container = {"progress": 0, "status": "Initializing...", "current_input": "", "current_count": 0, "total_count": 0}
+    progress_container = {"progress": 0, "status": "Initializing...", "current_input": "", "current_count": 0, "total_count": 0, "animation_state": "idle"}
     
-    def progress_callback(progress, status, current_input, current_count=0, total_count=0):
+    def progress_callback(progress, status, current_input, current_count=0, total_count=0, animation_state="idle"):
         progress_container["progress"] = progress
         progress_container["status"] = status
         progress_container["current_input"] = current_input
         progress_container["current_count"] = current_count
         progress_container["total_count"] = total_count
+        progress_container["animation_state"] = animation_state
     
     def run_agent_thread():
         try:
@@ -319,9 +349,12 @@ def stream_logs_and_run_agent(module_name):
                 progress_container["total_count"]
             )
             
-            # Yield the updated logs and progress
+            # Create header HTML with animation
+            header_html = create_header_html(progress_container["animation_state"])
+            
+            # Yield the updated logs, progress, and header
             html_logs = converter.convert(accumulated_logs, full=False)
-            yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html
+            yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html, header_html
             
         except queue.Empty:
             # If no new logs and thread is still alive, yield current state
@@ -333,8 +366,9 @@ def stream_logs_and_run_agent(module_name):
                     progress_container["current_count"],
                     progress_container["total_count"]
                 )
+                header_html = create_header_html(progress_container["animation_state"])
                 html_logs = converter.convert(accumulated_logs, full=False)
-                yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html
+                yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html, header_html
             continue
     
     # Wait for the thread to complete
@@ -354,9 +388,11 @@ def stream_logs_and_run_agent(module_name):
     
     if result_container["error"]:
         error_progress_html = create_progress_bar_html(0, f"Error: {result_container['error']}", "", 0, 0)
-        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, error_progress_html
+        error_header_html = create_header_html("idle")
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, error_progress_html, error_header_html
     else:
-        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", result_container["ontology_output"], result_container["file_output"], final_progress_html
+        final_header_html = create_header_html("celebrating")
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", result_container["ontology_output"], result_container["file_output"], final_progress_html, final_header_html
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
@@ -468,6 +504,15 @@ def run_interface():
         backdrop-filter: blur(10px);
         border: 2px solid rgba(36, 176, 100, 0.5);
         box-shadow: 0 8px 32px rgba(36, 176, 100, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 1rem;
     }
     
     .main-header h1 {
@@ -487,9 +532,64 @@ def run_interface():
     .nf-core-logo {
         width: 60px;
         height: 60px;
-        margin: 0 auto 1rem auto;
-        display: block;
         filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        transition: transform 0.3s ease;
+    }
+    
+    /* nf-core logo rotation animation */
+    .nf-core-logo-rotating {
+        animation: logoRotate 2s linear infinite;
+    }
+    
+    @keyframes logoRotate {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    
+    /* Confetti animation */
+    .confetti-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    
+    .confetti-piece {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: #24B064;
+        animation: confettiFall 3s ease-out forwards;
+    }
+    
+    .confetti-piece:nth-child(odd) {
+        background: #ECDC86;
+    }
+    
+    .confetti-piece:nth-child(3n) {
+        background: #396E35;
+    }
+    
+    .confetti-piece:nth-child(4n) {
+        background: #3F2B29;
+    }
+    
+    @keyframes confettiFall {
+        0% {
+            transform: translateY(-100vh) rotate(0deg);
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+        }
     }
     
     /* Custom Llama Spinner with nf-core styling */
@@ -918,14 +1018,8 @@ def run_interface():
     # create the Gradio interface
     with gr.Blocks(theme=custom_theme, css=custom_css, title="🦙 nf-core Ontology Assistant") as demo:
         
-        # Header with nf-core logo
-        gr.HTML("""
-        <div class="main-header">
-            <img src="https://raw.githubusercontent.com/nf-core/logos/master/nf-core-logos/nf-core-logo-square.png" class="nf-core-logo" alt="nf-core logo">
-            <h1>🦙 nf-core Ontology Assistant</h1>
-            <p>Intelligent nf-core meta.yml enhancement with EDAM ontology terms</p>
-        </div>
-        """)
+        # Header with nf-core logo and apple
+        header_html = gr.HTML(create_header_html("idle"))
         
         with gr.Row():
             with gr.Column(scale=1, elem_classes="input-container"):
@@ -989,16 +1083,18 @@ def run_interface():
         # Event handling for the streaming logs
         def clear_outputs():
             """Clear all outputs when starting a new analysis"""
-            return "", "", None, "<div class='nf-core-progress-container'><div class='progress-header'><div class='progress-title'>🦙 nf-core Analysis Progress</div><div class='progress-percentage'>0 out of 0</div></div><div class='progress-bar-background'><div class='progress-bar-fill' style='width: 0%; background: linear-gradient(90deg, #ECDC86, #ECDC86); box-shadow: 0 0 10px rgba(236, 220, 134, 0.4);'></div></div><div class='progress-status'><div class='status-text'>Preparing to start analysis...</div></div></div>"
+            initial_progress = "<div class='nf-core-progress-container'><div class='progress-header'><div class='progress-title'>🦙 nf-core Analysis Progress</div><div class='progress-percentage'>0 out of 0</div></div><div class='progress-bar-background'><div class='progress-bar-fill' style='width: 0%; background: linear-gradient(90deg, #ECDC86, #ECDC86); box-shadow: 0 0 10px rgba(236, 220, 134, 0.4);'></div></div><div class='progress-status'><div class='status-text'>Preparing to start analysis...</div></div></div>"
+            initial_header = create_header_html("rotating")
+            return "", "", None, initial_progress, initial_header
         
         # Set the function to run when the button is clicked
         fetch_btn.click(
             fn=clear_outputs,
-            outputs=[live_logs, ontology_output, download_button, progress_bar]
+            outputs=[live_logs, ontology_output, download_button, progress_bar, header_html]
         ).then(
             fn=stream_logs_and_run_agent,
             inputs=module_input,
-            outputs=[live_logs, ontology_output, download_button, progress_bar]
+            outputs=[live_logs, ontology_output, download_button, progress_bar, header_html]
         )
         
         # Footer with nf-core branding
