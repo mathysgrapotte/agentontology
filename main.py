@@ -4,8 +4,85 @@ from tools.bio_tools_tools import get_biotools_response, get_biotools_ontology
 from agents.query_ontology_db import agent
 import yaml
 import time
+import re
 
+def extract_format_terms_from_result(result):
+    """Extract EDAM format terms from agent result string"""
+    if isinstance(result, str):
+        # Look for format_XXXX patterns in the result using regex
+        format_matches = re.findall(r'format_\d+', result)
+        return format_matches
+    elif isinstance(result, list):
+        # If it's already a list, filter for format terms
+        return [item for item in result if isinstance(item, str) and item.startswith('format_')]
+    return []
+
+def format_ontology_results_html(results, meta_yml):
+    """Format the ontology results into a nice HTML display with clickable links"""
     
+    if not results.get("input"):
+        return "<div class='no-results'>No ontology results found.</div>"
+    
+    html_content = """
+    <div class='ontology-results'>
+        <div class='results-header'>
+            <h2>🧬 Discovered EDAM Ontologies</h2>
+            <p>Click on any ontology term to view detailed information in the EDAM database</p>
+        </div>
+    """
+    
+    # Group inputs by their descriptions from meta_yml
+    input_info = {}
+    for input_channel in meta_yml.get("input", []):
+        for ch_element in input_channel:
+            for key, value in ch_element.items():
+                if value.get("type") == "file":
+                    input_info[key] = value.get("description", "No description available")
+    
+    for input_name, result in results["input"].items():
+        format_terms = extract_format_terms_from_result(result)
+        description = input_info.get(input_name, "No description available")
+        
+        html_content += f"""
+        <div class='input-section'>
+            <div class='input-header'>
+                <h3>📁 {input_name}</h3>
+                <p class='input-description'>{description}</p>
+            </div>
+            <div class='ontologies-container'>
+        """
+        
+        if format_terms:
+            for term in format_terms:
+                term_id = term.replace("format_", "")
+                link_url = f"http://edamontology.org/{term}"
+                html_content += f"""
+                <div class='ontology-card'>
+                    <a href='{link_url}' target='_blank' class='ontology-link'>
+                        <div class='ontology-icon'>🔗</div>
+                        <div class='ontology-details'>
+                            <span class='ontology-id'>{term}</span>
+                            <span class='ontology-label'>Click to view in EDAM database</span>
+                        </div>
+                    </a>
+                </div>
+                """
+        else:
+            html_content += """
+            <div class='no-ontologies'>
+                <span>⚠️ No EDAM format ontologies found for this input</span>
+            </div>
+            """
+        
+        html_content += """
+            </div>
+        </div>
+        """
+    
+    html_content += "</div>"
+    
+    return html_content
+
 def run_multi_agent(module_name, progress=gr.Progress()): 
     """Enhanced function with progress tracking"""
     
@@ -109,7 +186,10 @@ def run_multi_agent(module_name, progress=gr.Progress()):
     progress(1.0, desc="✅ Llama has finished! Meta.yml updated successfully!")
     time.sleep(0.5)
     
-    return meta_yml, "tmp_meta.yml" # TODO: placeholder
+    # Format the results into a nice HTML display
+    formatted_results = format_ontology_results_html(results, meta_yml)
+    
+    return formatted_results, "tmp_meta.yml"
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
@@ -380,6 +460,139 @@ def run_interface():
         border: 1px solid rgba(36, 176, 100, 0.3) !important;
         color: #e9ecef !important;
     }
+    
+    /* Ontology Results Styling */
+    .ontology-results {
+        background: rgba(33, 37, 41, 0.95) !important;
+        border-radius: 15px !important;
+        padding: 1.5rem !important;
+        margin: 1rem 0 !important;
+        border: 2px solid rgba(36, 176, 100, 0.4) !important;
+        backdrop-filter: blur(10px) !important;
+    }
+    
+    .results-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid rgba(36, 176, 100, 0.3);
+    }
+    
+    .results-header h2 {
+        color: #24B064 !important;
+        font-size: 1.8rem !important;
+        font-weight: 700 !important;
+        margin: 0 0 0.5rem 0 !important;
+    }
+    
+    .results-header p {
+        color: #adb5bd !important;
+        font-size: 1rem !important;
+        margin: 0 !important;
+    }
+    
+    .input-section {
+        background: rgba(52, 58, 64, 0.8) !important;
+        border-radius: 12px !important;
+        padding: 1.5rem !important;
+        margin: 1rem 0 !important;
+        border: 1px solid rgba(36, 176, 100, 0.3) !important;
+    }
+    
+    .input-header h3 {
+        color: #24B064 !important;
+        font-size: 1.3rem !important;
+        font-weight: 600 !important;
+        margin: 0 0 0.5rem 0 !important;
+    }
+    
+    .input-description {
+        color: #e9ecef !important;
+        font-size: 0.95rem !important;
+        margin: 0 0 1rem 0 !important;
+        font-style: italic;
+        line-height: 1.4;
+    }
+    
+    .ontologies-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .ontology-card {
+        background: rgba(33, 37, 41, 0.9) !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(36, 176, 100, 0.4) !important;
+        overflow: hidden;
+        transition: all 0.3s ease !important;
+    }
+    
+    .ontology-card:hover {
+        border-color: #24B064 !important;
+        box-shadow: 0 4px 15px rgba(36, 176, 100, 0.3) !important;
+        transform: translateY(-2px);
+    }
+    
+    .ontology-link {
+        display: flex !important;
+        align-items: center !important;
+        padding: 1rem !important;
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    
+    .ontology-link:hover {
+        background: rgba(36, 176, 100, 0.1) !important;
+    }
+    
+    .ontology-icon {
+        font-size: 1.5rem;
+        margin-right: 1rem;
+        color: #24B064;
+    }
+    
+    .ontology-details {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+    
+    .ontology-id {
+        color: #24B064 !important;
+        font-weight: 600 !important;
+        font-size: 1.1rem !important;
+        margin-bottom: 0.25rem;
+    }
+    
+    .ontology-label {
+        color: #adb5bd !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .no-ontologies {
+        background: rgba(255, 193, 7, 0.1) !important;
+        border: 1px solid rgba(255, 193, 7, 0.3) !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        text-align: center;
+    }
+    
+    .no-ontologies span {
+        color: #ffc107 !important;
+        font-weight: 500;
+    }
+    
+    .no-results {
+        background: rgba(220, 53, 69, 0.1) !important;
+        border: 1px solid rgba(220, 53, 69, 0.3) !important;
+        border-radius: 8px !important;
+        padding: 2rem !important;
+        text-align: center;
+        color: #dc3545 !important;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
     """
     
     # create the Gradio interface
@@ -428,11 +641,9 @@ def run_interface():
                 </div>
                 """)
                 
-                # create the output textbox for the meta.yml content and a download button
-                meta_output = gr.Textbox(
-                    label="📄 Updated meta.yml content", 
-                    lines=15,
-                    interactive=False,
+                # create the output HTML component for the ontology results
+                ontology_output = gr.HTML(
+                    label="🧬 Discovered EDAM Ontologies",
                     elem_classes="result-container"
                 )
                 
@@ -461,7 +672,7 @@ def run_interface():
         ).then(
             fn=run_multi_agent,
             inputs=module_input,
-            outputs=[meta_output, download_button],
+            outputs=[ontology_output, download_button],
             show_progress="full"
         ).then(
             fn=hide_llama_status,
