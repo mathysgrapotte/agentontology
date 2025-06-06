@@ -90,6 +90,44 @@ def extract_format_terms_from_result(result):
         return [item for item in result if isinstance(item, str) and item.startswith('format_')]
     return []
 
+def create_progress_bar_html(progress, status, current_input, current_count=0, total_count=0):
+    """Create an animated progress bar HTML with nf-core styling"""
+    
+    # Determine progress bar color based on status
+    if "Error" in status:
+        bar_color = "#dc3545"  # Red for errors
+        glow_color = "rgba(220, 53, 69, 0.4)"
+    elif progress == 100:
+        bar_color = "#24B064"  # nf-core green for completion
+        glow_color = "rgba(36, 176, 100, 0.4)"
+    else:
+        bar_color = "#ECDC86"  # nf-core yellow for processing
+        glow_color = "rgba(236, 220, 134, 0.4)"
+    
+    # Format the counter display
+    if total_count > 0:
+        counter_display = f"{current_count} out of {total_count}"
+    else:
+        counter_display = f"{progress}%"
+    
+    progress_html = f"""
+    <div class='nf-core-progress-container'>
+        <div class='progress-header'>
+            <div class='progress-title'>🦙 nf-core Analysis Progress</div>
+            <div class='progress-percentage'>{counter_display}</div>
+        </div>
+        <div class='progress-bar-background'>
+            <div class='progress-bar-fill' style='width: {progress}%; background: linear-gradient(90deg, {bar_color}, {bar_color}); box-shadow: 0 0 10px {glow_color};'></div>
+            <div class='progress-bar-pulse' style='left: {progress}%; background: {bar_color};'></div>
+        </div>
+        <div class='progress-status'>
+            <div class='status-text'>{status}</div>
+        </div>
+    </div>
+    """
+    
+    return progress_html
+
 def format_ontology_results_html(results, meta_yml):
     """Format the ontology results into a nice HTML display with clickable links"""
     
@@ -156,7 +194,7 @@ def format_ontology_results_html(results, meta_yml):
     
     return html_content
 
-def run_multi_agent_with_logs(module_name):
+def run_multi_agent_with_logs(module_name, progress_callback=None):
     """Enhanced function with progress tracking and live log streaming"""
     
     # Clear the log queue before starting
@@ -171,30 +209,61 @@ def run_multi_agent_with_logs(module_name):
     
     try:
         ### RETRIEVE INFORMATION FROM META.YML ###
+        if progress_callback:
+            progress_callback(0, "Fetching meta.yml file...", "", 0, 0)
+        
         meta_yml = get_meta_yml_file(module_name=module_name)
         time.sleep(0.5)
 
         ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
-        total_inputs = len(meta_yml.get("input", []))
+        # Count total file inputs
+        total_file_inputs = 0
+        file_inputs = []
+        for input_channel in meta_yml.get("input", []):
+            for ch_element in input_channel:
+                for key, value in ch_element.items():
+                    if value.get("type") == "file":
+                        total_file_inputs += 1
+                        file_inputs.append((key, value))
+        
+        if total_file_inputs == 0:
+            if progress_callback:
+                progress_callback(100, "No file inputs found", "", 0, 0)
+            formatted_results = format_ontology_results_html(results, meta_yml)
+            return formatted_results, "tmp_meta.yml"
+        
         current_input = 0
         
         for input_channel in meta_yml["input"]:
-            current_input += 1
-            
             for ch_element in input_channel:
                 for key, value in ch_element.items():
                     if value["type"] == "file":
+                        # Update progress BEFORE processing starts for this input
+                        if progress_callback:
+                            progress_callback(int((current_input / total_file_inputs) * 100), f"Starting analysis of input: {key}", key, current_input, total_file_inputs)
+                        
                         # This is where the agent runs - logs should be captured automatically
                         result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
                         results["input"][key] = result
                         
                         format_terms = extract_format_terms_from_result(result)
+                        
+                        # Update progress AFTER processing completes for this input
+                        current_input += 1
+                        progress = int((current_input / total_file_inputs) * 100)
+                        if progress_callback:
+                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_input, total_file_inputs)
+
+        if progress_callback:
+            progress_callback(100, "Analysis complete! Generating results...", "", total_file_inputs, total_file_inputs)
 
         ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
         with open("tmp_meta.yml", "w") as fh:
             yaml.dump(meta_yml, fh)
         
     except Exception as e:
+        if progress_callback:
+            progress_callback(0, f"Error: {str(e)}", "", 0, 0)
         raise e
     
     # Format the results into a nice HTML display
@@ -207,12 +276,20 @@ def stream_logs_and_run_agent(module_name):
     
     # Start the agent in a separate thread
     result_container = {"ontology_output": None, "file_output": None, "error": None}
+    progress_container = {"progress": 0, "status": "Initializing...", "current_input": "", "current_count": 0, "total_count": 0}
+    
+    def progress_callback(progress, status, current_input, current_count=0, total_count=0):
+        progress_container["progress"] = progress
+        progress_container["status"] = status
+        progress_container["current_input"] = current_input
+        progress_container["current_count"] = current_count
+        progress_container["total_count"] = total_count
     
     def run_agent_thread():
         try:
             queue_writer = QueueWriter(log_queue)
             with redirect_stdout(queue_writer), redirect_stderr(queue_writer):
-                ontology_output, file_output = run_multi_agent_with_logs(module_name)
+                ontology_output, file_output = run_multi_agent_with_logs(module_name, progress_callback)
                 result_container["ontology_output"] = ontology_output
                 result_container["file_output"] = file_output
         except Exception as e:
@@ -233,15 +310,31 @@ def stream_logs_and_run_agent(module_name):
             log_msg = log_queue.get(timeout=0.1)
             accumulated_logs += log_msg
             
-            # Yield the updated logs
+            # Create progress bar HTML
+            progress_html = create_progress_bar_html(
+                progress_container["progress"],
+                progress_container["status"],
+                progress_container["current_input"],
+                progress_container["current_count"],
+                progress_container["total_count"]
+            )
+            
+            # Yield the updated logs and progress
             html_logs = converter.convert(accumulated_logs, full=False)
-            yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
+            yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html
             
         except queue.Empty:
             # If no new logs and thread is still alive, yield current state
             if agent_thread.is_alive():
+                progress_html = create_progress_bar_html(
+                    progress_container["progress"],
+                    progress_container["status"],
+                    progress_container["current_input"],
+                    progress_container["current_count"],
+                    progress_container["total_count"]
+                )
                 html_logs = converter.convert(accumulated_logs, full=False)
-                yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
+                yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, progress_html
             continue
     
     # Wait for the thread to complete
@@ -257,10 +350,13 @@ def stream_logs_and_run_agent(module_name):
     
     # Return final results
     html_logs = converter.convert(accumulated_logs, full=False)
+    final_progress_html = create_progress_bar_html(100, "Complete!", "", progress_container["total_count"], progress_container["total_count"])
+    
     if result_container["error"]:
-        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None
+        error_progress_html = create_progress_bar_html(0, f"Error: {result_container['error']}", "", 0, 0)
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", None, None, error_progress_html
     else:
-        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", result_container["ontology_output"], result_container["file_output"]
+        yield f"<div class='live-logs-container'><pre class='live-logs'>{html_logs}</pre></div>", result_container["ontology_output"], result_container["file_output"], final_progress_html
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
@@ -486,9 +582,120 @@ def run_interface():
         background: linear-gradient(45deg, #396E35, #24B064) !important;
     }
     
-    /* Progress bar with nf-core colors */
-    .progress-bar {
-        background: linear-gradient(90deg, #24B064, #ECDC86) !important;
+    /* nf-core Progress Bar Styling */
+    .nf-core-progress-container {
+        background: rgba(33, 37, 41, 0.95) !important;
+        border-radius: 15px !important;
+        padding: 1.5rem !important;
+        margin: 1rem 0 !important;
+        border: 2px solid rgba(36, 176, 100, 0.4) !important;
+        backdrop-filter: blur(10px) !important;
+        box-shadow: 0 4px 20px rgba(36, 176, 100, 0.2) !important;
+    }
+    
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .progress-title {
+        color: #24B064 !important;
+        font-size: 1.2rem !important;
+        font-weight: 600 !important;
+    }
+    
+    .progress-percentage {
+        color: #ECDC86 !important;
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+        text-shadow: 0 2px 4px rgba(236, 220, 134, 0.3);
+    }
+    
+    .progress-bar-background {
+        width: 100%;
+        height: 12px;
+        background: rgba(52, 58, 64, 0.8) !important;
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(36, 176, 100, 0.3);
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 6px;
+        transition: width 0.5s ease-in-out, background 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .progress-bar-fill::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: shimmer 1.5s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+    
+    .progress-bar-pulse {
+        position: absolute;
+        top: -2px;
+        width: 8px;
+        height: 16px;
+        border-radius: 8px;
+        opacity: 0.8;
+        transform: translateX(-50%);
+        animation: pulse 1s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            transform: translateX(-50%) scale(1);
+            opacity: 0.8;
+        }
+        50% {
+            transform: translateX(-50%) scale(1.2);
+            opacity: 1;
+        }
+    }
+    
+    .progress-status {
+        margin-top: 1rem;
+        text-align: center;
+    }
+    
+    .status-text {
+        color: #e9ecef !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .current-input {
+        color: #24B064 !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        background: rgba(36, 176, 100, 0.1) !important;
+        border: 1px solid rgba(36, 176, 100, 0.3) !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1rem !important;
+        display: inline-block;
+        margin-top: 0.5rem;
+    }
+    
+    /* Progress container visibility */
+    .progress-container {
+        margin: 1rem 0 !important;
     }
     
     /* Textbox styling with dark theme */
@@ -751,6 +958,13 @@ def run_interface():
                 </div>
                 """)
                 
+                # Progress bar for showing analysis progress
+                progress_bar = gr.HTML(
+                    "<div class='nf-core-progress-container' style='display: none;'></div>",
+                    label="analysis progress",
+                    elem_classes="progress-container"
+                )
+                
                 # create the output HTML component for the ontology results
                 ontology_output = gr.HTML(
                     label="discovered EDAM ontologies",
@@ -775,16 +989,16 @@ def run_interface():
         # Event handling for the streaming logs
         def clear_outputs():
             """Clear all outputs when starting a new analysis"""
-            return "", "", None
+            return "", "", None, "<div class='nf-core-progress-container'><div class='progress-header'><div class='progress-title'>🦙 nf-core Analysis Progress</div><div class='progress-percentage'>0 out of 0</div></div><div class='progress-bar-background'><div class='progress-bar-fill' style='width: 0%; background: linear-gradient(90deg, #ECDC86, #ECDC86); box-shadow: 0 0 10px rgba(236, 220, 134, 0.4);'></div></div><div class='progress-status'><div class='status-text'>Preparing to start analysis...</div></div></div>"
         
         # Set the function to run when the button is clicked
         fetch_btn.click(
             fn=clear_outputs,
-            outputs=[live_logs, ontology_output, download_button]
+            outputs=[live_logs, ontology_output, download_button, progress_bar]
         ).then(
             fn=stream_logs_and_run_agent,
             inputs=module_input,
-            outputs=[live_logs, ontology_output, download_button]
+            outputs=[live_logs, ontology_output, download_button, progress_bar]
         )
         
         # Footer with nf-core branding
