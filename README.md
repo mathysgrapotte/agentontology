@@ -6,6 +6,10 @@ Our agent `AgentOntology` is a helper agent to find file ontologies.
 
 ## Demo
 
+<iframe width="640" height="360" src="https://www.loom.com/embed/2929a2b8b976438d81f5885b6df0a992" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+
+You can also watch the video in [this URL](https://www.loom.com/share/2929a2b8b976438d81f5885b6df0a992).
+
 ## The team
 
 - Cristina Araiz Sancho 
