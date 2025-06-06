@@ -104,3 +104,48 @@ def extract_information_from_meta_json(meta_file: dict, tool_name: str) -> dict:
         print("Extracted metadata information from nf-core module meta.yml")
     return {"inputs": inputs, "outputs": outputs, "homepage": homepage_url, "documentation": documentation_rul, "bio_tools_id": bio_tools_id}
 
+def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:dict) -> dict:
+    """
+    Update the meta.yml file with the final obtained ontologies
+    Args:
+        input_ontologies (dict): The final ontologies for inputs. 
+                            The dictionary contains the name of the file as key and a list of ontologies as value.
+        output_ontologies (dict): The final ontologies for outputs. 
+                            The dictionary contains the name of the file as key and a list of ontologies as value.
+        meta_yml (dict): The original meta.yml file content to be modified
+    Returns:
+        (dict): The updated meta.yml file
+    """
+    # Format ontology links
+    def format_ontology_links(ontology_dict):
+        for key in ontology_dict.keys():
+            updated_list = []
+            # ontology_dict[key] should be a list of format terms like ["format_1234", "format_5678"]
+            for format_term in ontology_dict[key]:
+                updated_list.append({"edam": f"http://edamontology.org/{format_term}"})
+            ontology_dict[key] = updated_list
+        return ontology_dict
+    input_ontologies = format_ontology_links(input_ontologies)
+    output_ontologies = format_ontology_links(output_ontologies)
+
+    # inputs
+    for i, input_ch in enumerate(meta_yml["input"]):
+        for j, ch_element in enumerate(input_ch):
+            for key, value in ch_element.items():
+                if key in input_ontologies:
+                    try:
+                        meta_yml["input"][i][j][key]["ontologies"].append(input_ontologies[key])
+                    except KeyError:
+                        meta_yml["input"][i][j][key]["ontologies"] = input_ontologies[key]
+    # outputs
+    for i, output in enumerate(meta_yml["output"]):
+        for key, output_channel in output.items():
+            for j, out_element in enumerate(output_channel):
+                for element_name, value in out_element.items():
+                    if element_name in output_ontologies:
+                        try:
+                            meta_yml["output"][i][key][j][element_name]["ontologies"].append(output_ontologies[element_name])
+                        except KeyError:
+                            meta_yml["output"][i][key][j][element_name]["ontologies"] = output_ontologies[element_name]
+
+    return meta_yml
