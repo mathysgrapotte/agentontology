@@ -119,12 +119,15 @@ def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:di
         (dict): The updated meta.yml file
     """
     # Format ontology links
-    for key in input_ontologies.keys():
-        updated_list = []
-        for format in input_ontologies[key]:
-            updated_list.append({"edam": f"http://edamontology.org/{format}"})
-        input_ontologies[key] = updated_list
-
+    def format_ontology_links(ontology_dict):
+        for key in ontology_dict.keys():
+            updated_list = []
+            for format in ontology_dict[key]:
+                updated_list.append({"edam": f"http://edamontology.org/{format}"})
+            ontology_dict[key] = updated_list
+        return ontology_dict
+    input_ontologies = format_ontology_links(input_ontologies)
+    output_ontologies = format_ontology_links(output_ontologies)
 
     # inputs
     for i, input_ch in enumerate(meta_yml["input"]):
@@ -136,6 +139,13 @@ def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:di
                     except KeyError:
                         meta_yml["input"][i][j][key]["ontologies"] = input_ontologies[key]
     # outputs
-    # for key,
-    
+    for key, output_ch in meta_yml["output"]:
+        for i, out_element in enumerate(output_ch):
+            for e_name, value in out_element:
+                if e_name in output_ontologies:
+                    try:
+                        meta_yml["output"][key][i][e_name]["ontologies"].append(input_ontologies[key])
+                    except KeyError:
+                        meta_yml["output"][key][i][e_name]["ontologies"] = input_ontologies[key]
+
     return meta_yml

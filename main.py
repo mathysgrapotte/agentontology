@@ -83,7 +83,7 @@ def run_multi_agent(module_name):
     ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
 
     with open("tmp_meta.yml", "w") as fh:
-        updated_meta_yml = update_meta_yml(results["input"], {}, meta_yml)
+        updated_meta_yml = update_meta_yml(results["input"], results["output"], meta_yml)
         yaml.dump(updated_meta_yml, fh)
     print(updated_meta_yml)
     return updated_meta_yml, "tmp_meta.yml" 
