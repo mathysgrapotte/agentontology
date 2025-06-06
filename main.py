@@ -65,12 +65,13 @@ def run_multi_agent(module_name):
                     result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
                     results["input"][key] = result
 
-    # for output_channel in meta_info["outputs"]:
-    #     for ch_element in output_channel:
-    #         for key, value in ch_element.items():
-    #             if value["type"] == "file":
-    #                 result = agent.run(f"You are presentend with a file format for the output {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-    #                 results["outputs"][key] = result
+    for output in meta_yml["output"]:
+        for key, output_channel in output.items():
+            for out_element in output_channel:
+                for element_name, value in out_element.items():
+                    if value["type"] == "file" and element_name != "versions.yml":
+                        result = agent.run(f"You are presentend with a file format for the output '{element_name}', which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...]). The output name {key} can also give you more information.")
+                        results["output"][element_name] = result
     
     ### FINAL AGENT TO BENCHMARK AND FIND THE COMMONALITIES BETWEEN BIO.TOOLS AND EDAM ###
 

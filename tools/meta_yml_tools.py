@@ -139,13 +139,14 @@ def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:di
                     except KeyError:
                         meta_yml["input"][i][j][key]["ontologies"] = input_ontologies[key]
     # outputs
-    for key, output_ch in meta_yml["output"]:
-        for i, out_element in enumerate(output_ch):
-            for e_name, value in out_element:
-                if e_name in output_ontologies:
-                    try:
-                        meta_yml["output"][key][i][e_name]["ontologies"].append(input_ontologies[key])
-                    except KeyError:
-                        meta_yml["output"][key][i][e_name]["ontologies"] = input_ontologies[key]
+    for i, output in enumerate(meta_yml["output"]):
+        for key, output_channel in output.items():
+            for j, out_element in enumerate(output_channel):
+                for element_name, value in out_element.items():
+                    if element_name in output_ontologies:
+                        try:
+                            meta_yml["output"][i][key][j][element_name]["ontologies"].append(output_ontologies[element_name])
+                        except KeyError:
+                            meta_yml["output"][i][key][j][element_name]["ontologies"] = output_ontologies[element_name]
 
     return meta_yml

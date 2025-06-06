@@ -7,6 +7,7 @@ model = LiteLLMModel(
     api_base="http://localhost:11434",
     temperature=0.0,
     max_tokens=8000,
+    num_ctx=9000,
 )
 
 tool_list = [search_edam_ontology_by_search_term, get_edam_description_from_ontology_format_class]
