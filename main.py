@@ -5,6 +5,81 @@ from agents.query_ontology_db import agent
 import yaml
 import time
 import re
+import io
+import logging
+import threading
+from contextlib import redirect_stdout, redirect_stderr
+import queue
+import sys
+
+# Global log queue for streaming logs to Gradio
+log_queue = queue.Queue()
+
+class GradioLogHandler(logging.Handler):
+    """Custom logging handler that sends logs to both terminal and Gradio queue"""
+    
+    def __init__(self, log_queue):
+        super().__init__()
+        self.log_queue = log_queue
+        self.terminal_handler = logging.StreamHandler(sys.__stdout__)
+        self.terminal_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+    
+    def emit(self, record):
+        # Send to terminal
+        self.terminal_handler.emit(record)
+        
+        # Send to Gradio queue
+        try:
+            log_msg = self.format(record)
+            self.log_queue.put(log_msg)
+        except Exception:
+            pass
+
+class QueueWriter:
+    """A stream-like object that writes to a queue, to capture stdout."""
+    def __init__(self, queue):
+        self.queue = queue
+        self.ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    def write(self, text):
+        # Print raw output to terminal to preserve colors
+        sys.__stdout__.write(text)
+        sys.__stdout__.flush()
+
+        # Clean ANSI codes for Gradio display
+        clean_text = self.ansi_escape.sub('', text)
+        if clean_text.strip():
+            self.queue.put(clean_text.rstrip())
+
+    def flush(self):
+        # Also flush stdout
+        sys.__stdout__.flush()
+
+def setup_logging():
+    """Setup logging to capture smolagents logs"""
+    # Create custom handler
+    gradio_handler = GradioLogHandler(log_queue)
+    gradio_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    )
+    
+    # Configure smolagents logger
+    smolagents_logger = logging.getLogger("smolagents")
+    smolagents_logger.setLevel(logging.INFO)
+    smolagents_logger.addHandler(gradio_handler)
+    
+    # Also capture other relevant loggers that might be used
+    for logger_name in ["transformers", "huggingface_hub", "agents"]:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)
+        logger.addHandler(gradio_handler)
+    
+    return gradio_handler
+
+# Initialize logging setup
+log_handler = setup_logging()
 
 def extract_format_terms_from_result(result):
     """Extract EDAM format terms from agent result string"""
@@ -83,113 +158,107 @@ def format_ontology_results_html(results, meta_yml):
     
     return html_content
 
-def run_multi_agent(module_name, progress=gr.Progress()): 
-    """Enhanced function with progress tracking"""
+def run_multi_agent_with_logs(module_name):
+    """Enhanced function with progress tracking and live log streaming"""
     
-    progress(0, desc="🦙 Llama is waking up...")
-    time.sleep(0.5)
+    # Clear the log queue before starting
+    while not log_queue.empty():
+        try:
+            log_queue.get_nowait()
+        except queue.Empty:
+            break
     
-    ### RETRIEVE INFORMATION FROM META.YML ###
-    progress(0.1, desc="🔍 Fetching meta.yml file...")
-    meta_yml = get_meta_yml_file(module_name=module_name)
-    time.sleep(0.5)
-    
-    progress(0.2, desc="🦙 Llama is analyzing the module structure...")
-    # module_info = extract_module_name_description(meta_file=meta_yml)
-    # module_tools = extract_tools_from_meta_json(meta_file=meta_yml)
-    time.sleep(0.5)
-
-    # ### FIND THE MODULE TOOL ###
-    progress(0.3, desc="🧠 Llama is thinking about the best tool...")
-    # if len(module_info) == 1:
-    #     module_yaml_name = module_info[0]
-    #     module_description = module_info[1]
-    # else:
-    #     # TODO: agent to choose the right tool
-    #     first_prompt = f"""
-    #         The module {module_info[0]} with desciption '{module_info[1]}' contains a series of tools. 
-    #         Find the tool that best describes the module. Return only one tool. Return the name. 
-    #         This is the list of tools:
-    #         {"\n\t".join(f"{tool[0]}: {tool[1]}" for tool in module_tools)}
-    #     """
-    #     module_yaml_name = "fastqc" # TODO: this would be the answer of the first agent
-    #     module_description = "my description" # TODO: this would be the answer of the first agent
-
-    # ### EXTRACT INFO FROM META.YML ###
-    progress(0.4, desc="📊 Extracting metadata information...")
-    # meta_info = extract_information_from_meta_json(meta_file=meta_yml, tool_name=module_yaml_name)
-    time.sleep(0.5)
-
-    # ### FETCH ONOTOLOGIES FROM BIO.TOOLS ###
-    progress(0.5, desc="🔬 Searching bio.tools database...")
-    # if meta_info["bio_tools_id"] == "":
-    #     bio_tools_list = get_biotools_response(module_yaml_name)
-
-    #     # TODO: agent to select the best match from all possible bio.tools entries
-    #     # The answer should be the entry ID
-    #     second_prompt = "" # TODO: update
-    #     bio_tools_tool = "FastQC" # TODO: this should be the answer form the second agent
-
-    #     ontology = get_biotools_ontology(module_yaml_name, bio_tools_tool)
-
-    #     ### CLASSIFY ALL INPUT AND OUTPUT ONTOLOGIES INTO THE APPROPRIATE CHANNELS ###
-
-    #     # TODO !!!
-    #     # Create an agent which classifies the ontologeis into the right i/o
-    #     # From biotols we get a list of ontologies for inputs and a list of ontologies for outputs
-    #     # but in most nf-core modules we will have finles separated into different channels
-    #     # For example bam, bai, sam...
-    #     # The agent should recieve the i/o from the module, the ontologies found in bio.tools, and assigne the correct ones to each channel.
-
-    # ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
-    progress(0.6, desc="🦙 Llama is consulting the EDAM database...")
     results = {"input": {}, "output": {}}
-
-    total_inputs = len(meta_yml.get("input", []))
-    current_input = 0
+    meta_yml = None
     
-    for input_channel in meta_yml["input"]:
-        current_input += 1
-        progress(0.6 + (current_input / total_inputs) * 0.3, 
-                desc=f"🔍 Processing input channel {current_input}/{total_inputs}...")
+    try:
+        ### RETRIEVE INFORMATION FROM META.YML ###
+        meta_yml = get_meta_yml_file(module_name=module_name)
+        time.sleep(0.5)
+
+        ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
+        total_inputs = len(meta_yml.get("input", []))
+        current_input = 0
         
-        for ch_element in input_channel:
-            for key, value in ch_element.items():
-                if value["type"] == "file":
-                    progress(0.6 + (current_input / total_inputs) * 0.3, 
-                            desc=f"🦙 Llama is analyzing {key}...")
-                    result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-                    results["input"][key] = result
+        for input_channel in meta_yml["input"]:
+            current_input += 1
+            
+            for ch_element in input_channel:
+                for key, value in ch_element.items():
+                    if value["type"] == "file":
+                        # This is where the agent runs - logs should be captured automatically
+                        result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
+                        results["input"][key] = result
+                        
+                        format_terms = extract_format_terms_from_result(result)
 
-    # for output_channel in meta_info["outputs"]:
-    #     for ch_element in output_channel:
-    #         for key, value in ch_element.items():
-    #             if value["type"] == "file":
-    #                 result = agent.run(f"You are presentend with a file format for the output {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-    #                 results["outputs"][key] = result
-    
-    ### FINAL AGENT TO BENCHMARK AND FIND THE COMMONALITIES BETWEEN BIO.TOOLS AND EDAM ###
-    progress(0.9, desc="🔄 Finalizing ontology mappings...")
-    # TODO !!!
-    # Get results from bio.tools and EDAM
-    # The agent should doublecheck if results are correct (?)
-    # and return the ones that make more sense
-    # and remove duplicates (this can be done through a python function?)
-
-    ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
-    progress(0.95, desc="💾 Generating updated meta.yml...")
-    # TODO: placeholder
-    # This is returning the original meta.yml, but it should return the modified one with the ontologies added
-    with open("tmp_meta.yml", "w") as fh:
-        yaml.dump(meta_yml, fh)
-    
-    progress(1.0, desc="✅ Llama has finished! Meta.yml updated successfully!")
-    time.sleep(0.5)
+        ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
+        with open("tmp_meta.yml", "w") as fh:
+            yaml.dump(meta_yml, fh)
+        
+    except Exception as e:
+        raise e
     
     # Format the results into a nice HTML display
     formatted_results = format_ontology_results_html(results, meta_yml)
     
     return formatted_results, "tmp_meta.yml"
+
+def stream_logs_and_run_agent(module_name):
+    """Generator function that streams logs while running the agent"""
+    
+    # Start the agent in a separate thread
+    result_container = {"ontology_output": None, "file_output": None, "error": None}
+    
+    def run_agent_thread():
+        try:
+            queue_writer = QueueWriter(log_queue)
+            with redirect_stdout(queue_writer), redirect_stderr(queue_writer):
+                ontology_output, file_output = run_multi_agent_with_logs(module_name)
+                result_container["ontology_output"] = ontology_output
+                result_container["file_output"] = file_output
+        except Exception as e:
+            # The error will be redirected to the queue via stderr
+            result_container["error"] = str(e)
+    
+    # Start the thread
+    agent_thread = threading.Thread(target=run_agent_thread)
+    agent_thread.start()
+    
+    # Stream logs while the agent is running
+    accumulated_logs = ""
+    
+    while agent_thread.is_alive() or not log_queue.empty():
+        try:
+            # Get log message with a short timeout
+            log_msg = log_queue.get(timeout=0.1)
+            accumulated_logs += log_msg + "\n"
+            
+            # Yield the updated logs
+            yield f"```text\n{accumulated_logs}\n```", None, None
+            
+        except queue.Empty:
+            # If no new logs and thread is still alive, yield current state
+            if agent_thread.is_alive():
+                yield f"```text\n{accumulated_logs}\n```", None, None
+            continue
+    
+    # Wait for the thread to complete
+    agent_thread.join()
+    
+    # Check for any remaining logs
+    while not log_queue.empty():
+        try:
+            log_msg = log_queue.get_nowait()
+            accumulated_logs += log_msg + "\n"
+        except queue.Empty:
+            break
+    
+    # Return final results
+    if result_container["error"]:
+        yield f"```text\n{accumulated_logs}\n```", None, None
+    else:
+        yield f"```text\n{accumulated_logs}\n```", result_container["ontology_output"], result_container["file_output"]
 
 def run_interface():
     """ Function to run the agent with a Gradio interface.
@@ -248,6 +317,39 @@ def run_interface():
     .gradio-container {
         background: linear-gradient(135deg, #24B064 0%, #396E35 50%, #3F2B29 100%) !important;
         min-height: 100vh;
+    }
+    
+    /* Live logs styling */
+    .live-logs {
+        background: rgba(33, 37, 41, 0.95) !important;
+        border: 2px solid rgba(36, 176, 100, 0.4) !important;
+        border-radius: 15px !important;
+        color: #e9ecef !important;
+        font-family: 'Fira Code', 'Monaco', 'Consolas', monospace !important;
+        font-size: 0.9rem !important;
+        line-height: 1.4 !important;
+        max-height: 400px !important;
+        overflow-y: auto !important;
+        padding: 1rem !important;
+        white-space: pre-wrap !important;
+    }
+    
+    .live-logs::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .live-logs::-webkit-scrollbar-track {
+        background: rgba(52, 58, 64, 0.5);
+        border-radius: 4px;
+    }
+    
+    .live-logs::-webkit-scrollbar-thumb {
+        background: rgba(36, 176, 100, 0.6);
+        border-radius: 4px;
+    }
+    
+    .live-logs::-webkit-scrollbar-thumb:hover {
+        background: rgba(36, 176, 100, 0.8);
     }
     
     .main-header {
@@ -612,6 +714,7 @@ def run_interface():
                 gr.HTML("""
                 <div class="section-header">
                     nf-core module
+                </div>
                 """)
                 
                 # create the input textbox for the nf-core module name
@@ -629,9 +732,6 @@ def run_interface():
                     elem_classes="btn-primary",
                     size="lg"
                 )
-                
-                # Llama status indicator
-                status_display = gr.HTML(visible=False)
 
             with gr.Column(scale=1, elem_classes="output-container"):
                 gr.HTML("""
@@ -650,32 +750,35 @@ def run_interface():
                     label="download original meta.yml with ontologies",
                     elem_classes="result-container"
                 )
-
-        # Progress indicator function
-        def show_llama_status():
-            return gr.HTML("""
-            <div class="llama-loader">
-                <div class="llama-emoji">🦙</div>
-                <div class="llama-text">nf-core Llama is working hard!</div>
-                <div class="llama-subtext">Analyzing ontologies and enhancing your meta.yml...</div>
-            </div>
-            """, visible=True)
         
-        def hide_llama_status():
-            return gr.HTML("", visible=False)
+        # Live logs section
+        with gr.Row():
+            with gr.Column(elem_classes="input-container"):
+                gr.HTML("""
+                <div class="section-header">
+                    🦙 live agent logs
+                </div>
+                """)
+                
+                # Live log display
+                live_logs = gr.Markdown(
+                    "**Logs will appear here when the agent starts working...**",
+                    elem_classes="live-logs",
+                )
 
-        # set the function to run when the button is clicked
+        # Event handling for the streaming logs
+        def clear_outputs():
+            """Clear all outputs when starting a new analysis"""
+            return "", "", None
+        
+        # Set the function to run when the button is clicked
         fetch_btn.click(
-            fn=show_llama_status,
-            outputs=status_display
+            fn=clear_outputs,
+            outputs=[live_logs, ontology_output, download_button]
         ).then(
-            fn=run_multi_agent,
+            fn=stream_logs_and_run_agent,
             inputs=module_input,
-            outputs=[ontology_output, download_button],
-            show_progress="full"
-        ).then(
-            fn=hide_llama_status,
-            outputs=status_display
+            outputs=[live_logs, ontology_output, download_button]
         )
         
         # Footer with nf-core branding
@@ -689,7 +792,7 @@ def run_interface():
         </div>
         """)
     
-    demo.launch()
+    demo.launch(debug=True)
 
 if __name__ == "__main__":
     run_interface()
