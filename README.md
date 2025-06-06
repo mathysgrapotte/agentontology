@@ -1,91 +1,87 @@
-# Hello World Agent with MCP
+# AgentOntology
 
-A simple demonstration of Tiny Agents using Gradio MCP server and local Ollama.
 
-## What this does
 
-This example creates:
-- **Gradio MCP Server**: A simple server that provides a "hello world" function
-- **Tiny Agent**: An agent that connects to your local Ollama endpoint and can use the MCP server's tools
+Our agent `AgentOntology` is a helper agent to find file ontologies.
+
+## Demo
+
+## The team
+
+- Cristina Araiz Sancho 
+    - <img src="https://github.com/favicon.ico" width="16" height="16" alt="GitHub"/> @caraiz2001 
+    - <img src="https://huggingface.co/favicon.ico" width="16" height="16" alt="HuggingFace"/> @caraiz2001
+- Júlia Mir Pedrol 
+    - <img src="https://github.com/favicon.ico" width="16" height="16" alt="GitHub"/> @mirpedrol 
+    - <img src="https://huggingface.co/favicon.ico" width="16" height="16" alt="HuggingFace"/> @asthara
+- Mathys Grapotte 
+    - <img src="https://github.com/favicon.ico" width="16" height="16" alt="GitHub"/> @mathysgrapotte 
+    - <img src="https://huggingface.co/favicon.ico" width="16" height="16" alt="HuggingFace"/> @mgrapotte
+- Suzanne Jin 
+    - <img src="https://github.com/favicon.ico" width="16" height="16" alt="GitHub"/> @suzannejin 
+    - <img src="https://huggingface.co/favicon.ico" width="16" height="16" alt="HuggingFace"/> @suzannejin
+
+## Background
+
+We are contributing to the [nf-core](https://nf-co.re/) community by developing a Gradio app powered by an AI agent. 
+This app simplifies the annotation of nf-core module input and output files by automatically assigning standardized EDAM ontology terms.
+
+nf-core is a vibrant community dedicated to curating best-practice analysis pipelines built using [Nextflow](https://www.nextflow.io/), a powerful workflow management system. 
+
+Central to nf-core's success is its commitment to standardization, enabling easy reuse of modules - wrappers around bioinformatics tools - and streamlined contributions across multiple projects.
+
+Accurate and thorough annotation of modules is essential to achieve this standardization, but manual annotation can be tedious. Here's where our tool enters the game! EDAM ontology provides clear, standardized labels, making bioinformatics data easily understandable and interoperable.
+
+Benefits of tagging input/output files with EDAM ontology:
+- Improved clarity
+- Enhanced interoperability
+- Better discoverability
+- FAIR compliance
+- Automation-ready
 
 ## Prerequisites
 
 1. **Ollama** running locally at `http://127.0.0.1:11434`
-2. **qwen3:0.6b** model installed in Ollama
-3. **Node.js and npm** for MCP remote connectivity
+2. **devstral:latest** model installed in Ollama
+3. **uv** to manage dependencies
 
 ## Setup
 
-### 1. Install Ollama and the model
+### 1. Install Ollama and pull the model
 ```bash
 # If you haven't already, install Ollama
 # Then pull the model:
-ollama pull qwen3:0.6b
-```
-
-### 2. Install Node.js dependencies
-```bash
-# Install mcp-remote globally
-npm install -g mcp-remote
+ollama pull devstral:latest
 ```
 
 ### 3. Install Python dependencies
 ```bash
-# Using uv (recommended)
 uv sync
-
-# Or using pip
-pip install -r requirements.txt
 ```
 
 ## Usage
 
 ### 1. Start Ollama
-Make sure Ollama is running:
 ```bash
 ollama serve
 ```
 
 ### 2. Run the agent
 ```bash
-# Using uv
-uv run python main.py
-
-# Or using python directly
 python main.py
 ```
 
 ### 3. Interact with the agent
-Once started, you can:
-- Type messages to chat with the agent
-- Ask it to use the hello world function (e.g., "Can you greet Alice using your tool?")
-- Type 'quit' to exit
 
-## Example Interaction
-
-```
-🎉 Agent is ready! Type 'quit' to exit.
-==================================================
-
-👤 You: Can you greet Alice using your available tools?
-
-🤖 Agent: I'll use the hello world function to greet Alice for you.
-
-*Agent calls the hello_world_function with name="Alice"*
-
-Hello, Alice! This message comes from the MCP server.
-```
+Once started, open `http://127.0.0.1:11434` in your browser to see the Gradio app interface.
+You will see a textbox to provide the name of the module you want to update.
+Wait for the agent to do its job!
 
 ## How it works
 
-1. **Gradio MCP Server**: Creates an MCP-enabled Gradio interface at `http://127.0.0.1:7860`
-2. **MCP Protocol**: The server exposes the `hello_world_function` via MCP
-3. **Tiny Agent**: Connects to both Ollama (for LLM) and the Gradio server (for tools)
-4. **Tool Usage**: The agent can discover and use the hello world function when appropriate
+We have implemented a pipeline using Python funcitons and calling AI agents when needed.
 
-## Troubleshooting
+1. We pull the `meta.yml` file from the requested nf-core module (this file contains the module metadata.) ➡️ [Python funciton]
+2. We ask the agent to retrieve the ontology terms from the EDAM database, and select the relevant term for each input and output file. ➡️ [`CodeAgent` with a `LiteLLMModel`]
+3. We return the ontology terms and the updated `meta.yml` file. ➡️ [Python funciton]
 
-- **"Connection refused"**: Make sure Ollama is running (`ollama serve`)
-- **"Model not found"**: Install the model (`ollama pull qwen3:0.6b`)
-- **"mcp-remote not found"**: Install it with `npm install -g mcp-remote`
-- **Port conflicts**: The Gradio server uses port 7860 by default
