@@ -11,7 +11,7 @@ import threading
 from contextlib import redirect_stdout, redirect_stderr
 import queue
 import sys
-from ansi2html import Ansi2HTMLConverter as Ansi2HtmlConverter
+from ansi2html import Ansi2HTMLConverter
 
 # Global log queue for streaming logs to Gradio
 log_queue = queue.Queue()
@@ -83,11 +83,13 @@ def extract_format_terms_from_result(result):
     """Extract EDAM format terms from agent result string"""
     if isinstance(result, str):
         # Look for format_XXXX patterns in the result using regex
-        format_matches = re.findall(r'format_\d+', result)
+        format_matches = re.findall(r"format_\d+", result)
         return format_matches
     elif isinstance(result, list):
         # If it's already a list, filter for format terms
-        return [item for item in result if isinstance(item, str) and item.startswith('format_')]
+        return [
+            item for item in result if isinstance(item, str) and item.startswith("format_")
+        ]
     return []
 
 def create_header_html(animation_state="idle"):
@@ -160,7 +162,8 @@ def create_progress_bar_html(progress, status, current_input, current_count=0, t
 def format_ontology_results_html(results, meta_yml):
     """Format the ontology results into a nice HTML display with clickable links"""
     
-    if not results.get("input"):
+    # Check if there are any ontology results in either input or output
+    if not results.get("input", {}) and not results.get("output", {}):
         return "<div class='no-results'>No ontology results found.</div>"
     
     html_content = """
@@ -171,7 +174,7 @@ def format_ontology_results_html(results, meta_yml):
         </div>
     """
     
-    # Group inputs by their descriptions from meta_yml
+    # Group inputs and outputs by their descriptions from meta_yml
     input_info = {}
     for input_channel in meta_yml.get("input", []):
         for ch_element in input_channel:
@@ -179,11 +182,19 @@ def format_ontology_results_html(results, meta_yml):
                 if value.get("type") == "file":
                     input_info[key] = value.get("description", "No description available")
     
+    # Also include output descriptions
+    for output in meta_yml.get("output", []):
+        for key, output_channel in output.items():
+            for out_element in output_channel:
+                for element_name, value in out_element.items():
+                    if value.get("type") == "file" and element_name != "versions.yml":
+                        input_info[key] = value.get("description", "No description available")
+    
     final = {}
     final.update(results["input"])
     final.update(results["output"])
-    for input_name, result in final.items():
-        format_terms = extract_format_terms_from_result(result)
+    for input_name, format_terms in final.items():
+        # format_terms is already a list of format terms extracted earlier
         description = input_info.get(input_name, "No description available")
         
         html_content += f"""
@@ -279,17 +290,19 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
                     if value["type"] == "file":
                         # Update progress BEFORE processing starts for this input
                         if progress_callback:
-                            progress_callback(int((current_files / total_files) * 100), f"Starting analysis of input: {key}", key, current_files, total_files)
+                            progress_callback(int((current_files / total_files) * 100), f"Starting analysis of input: {key}", key, current_files, total_files, "rotating")
                         
                         # This is where the agent runs - logs should be captured automatically
                         result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
-                        results["input"][key] = result
+                        # Extract format terms from the agent result
+                        format_terms = extract_format_terms_from_result(result)
+                        results["input"][key] = format_terms
                                                 
                         # Update progress AFTER processing completes for this input
                         current_files += 1
                         progress = int((current_files / total_files) * 100)
                         if progress_callback:
-                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_files, total_files)
+                            progress_callback(progress, f"Completed analysis of input: {key}", key, current_files, total_files, "rotating")
         
         #outputs
         for output in meta_yml.get("output", []):
@@ -299,24 +312,26 @@ def run_multi_agent_with_logs(module_name, progress_callback=None):
                         if value["type"] == "file" and element_name != "versions.yml":
                             # Update progress BEFORE processing starts for this output
                             if progress_callback:
-                                progress_callback(int((current_files / total_files) * 100), f"Starting analysis of output: {key}", key, current_files, total_files)
+                                progress_callback(int((current_files / total_files) * 100), f"Starting analysis of output: {key}", key, current_files, total_files, "rotating")
                             
                             # This is where the agent runs - logs should be captured automatically
                             result = agent.run(f"You are presentend with a file format for the output '{element_name}', which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...]). The output name {key} can also give you more information.")
-                            results["output"][key] = result
+                            # Extract format terms from the agent result
+                            format_terms = extract_format_terms_from_result(result)
+                            results["output"][key] = format_terms
                                                         
                             # Update progress AFTER processing completes for this output
                             current_files += 1
                             progress = int((current_files / total_files) * 100)
                             if progress_callback:
-                                progress_callback(progress, f"Completed analysis of output: {key}", key, current_files, total_files)
+                                progress_callback(progress, f"Completed analysis of output: {key}", key, current_files, total_files, "rotating")
 
         if progress_callback:
-            progress_callback(100, "Analysis complete! Generating results...", "", total_files, total_files)
+            progress_callback(100, "Analysis complete! Generating results...", "", total_files, total_files, "celebrating")
 
         ### UPDATE META.YML FILE ADDING ONTOLOGIES AND RETURN THE ANSWER ###
         with open("tmp_meta.yml", "w") as fh:
-            updated_meta_yml = update_meta_yml(results["input"], results["output"], meta_yml)
+            updated_meta_yml = update_meta_yml(results["input"].copy(), results["output"].copy(), meta_yml)
             yaml.dump(updated_meta_yml, fh)
         
     except Exception as e:
@@ -334,9 +349,9 @@ def stream_logs_and_run_agent(module_name):
     
     # Start the agent in a separate thread
     result_container = {"ontology_output": None, "file_output": None, "error": None}
-    progress_container = {"progress": 0, "status": "Initializing...", "current_files": "", "current_count": 0, "total_count": 0}
+    progress_container = {"progress": 0, "status": "Initializing...", "current_files": "", "current_count": 0, "total_count": 0, "animation_state": "rotating"}
     
-    def progress_callback(progress, status, current_files, current_count=0, total_count=0):
+    def progress_callback(progress, status, current_files, current_count=0, total_count=0, animation_state="rotating"):
         progress_container["progress"] = progress
         progress_container["status"] = status
         progress_container["current_files"] = current_files
@@ -361,7 +376,7 @@ def stream_logs_and_run_agent(module_name):
     
     # Stream logs while the agent is running
     accumulated_logs = ""
-    converter = Ansi2HtmlConverter(dark_bg=True, line_wrap=False)
+    converter = Ansi2HTMLConverter(dark_bg=True, line_wrap=False)
 
     while agent_thread.is_alive() or not log_queue.empty():
         try:

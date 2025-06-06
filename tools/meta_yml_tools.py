@@ -120,8 +120,9 @@ def update_meta_yml(input_ontologies: dict, output_ontologies: dict, meta_yml:di
     def format_ontology_links(ontology_dict):
         for key in ontology_dict.keys():
             updated_list = []
-            for format in ontology_dict[key]:
-                updated_list.append({"edam": f"http://edamontology.org/{format}"})
+            # ontology_dict[key] should be a list of format terms like ["format_1234", "format_5678"]
+            for format_term in ontology_dict[key]:
+                updated_list.append({"edam": f"http://edamontology.org/{format_term}"})
             ontology_dict[key] = updated_list
         return ontology_dict
     input_ontologies = format_ontology_links(input_ontologies)
