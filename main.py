@@ -56,16 +56,23 @@ def run_multi_agent(module_name):
 
     ### FETCH ONTOLOGY TERMS FROM EDAM DATABASE ###
 
+    results = {"inputs": {}, "outputs": {}}
+
     for input_channel in meta_info["inputs"]:
         for ch_element in input_channel:
             for key, value in ch_element.items():
-                if key == "file":
-                    result = agent.run(f"""
-                        You are presentend with a file format for the type {key}, which is a {value['type']} and is described by the following description: '{value['description']}', 
-                        search for the single best match out of possible matches in the edam ontology (formated as format_XXXX), 
-                        and return the answer (a single ontology class) in a final_answer call such as final_answer(f'format_XXXX')
-                    """)
-                    print(result)
+                if value["type"] == "file":
+                    result = agent.run(f"You are presentend with a file format for the input {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
+                    results["inputs"][key] = result
+
+    for output_channel in meta_info["outputs"]:
+        for ch_element in output_channel:
+            for key, value in ch_element.items():
+                if value["type"] == "file":
+                    result = agent.run(f"You are presentend with a file format for the output {key}, which is a file and is described by the following description: '{value['description']}', search for the best matches out of possible matches in the edam ontology (formated as format_XXXX), and return the answer (a list of ontology classes) in a final_answer call such as final_answer([format_XXXX, format_XXXX, ...])")
+                    results["outputs"][key] = result
+
+    print(results)
     
     ### FINAL AGENT TO BENCHMARK AND FIND THE COMMONALITIES BETWEEN BIO.TOOLS AND EDAM ###
 
@@ -108,7 +115,7 @@ def run_interface():
             outputs=[meta_output, download_button]
         )
     
-    demo.launch(share=True)
+    demo.launch()
 
 if __name__ == "__main__":
-    run_interface()
+    run_multi_agent("fastqc")
