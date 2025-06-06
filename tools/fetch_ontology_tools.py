@@ -70,7 +70,7 @@ def search_edam_ontology_by_search_term(search_term: str = None) -> list:
     if len(matches) > 10:
         print(f"... and {len(matches) - 10} more results")
     
-    return matches
+    return [match.name for match in matches]
 
 @tool
 def get_edam_description_from_ontology_format_class(term_id: str) -> str:
